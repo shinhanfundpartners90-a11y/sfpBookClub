@@ -60,7 +60,8 @@
   }
 
   function uniqueSorted(arr) {
-    return Array.from(new Set(arr)).sort(function (a, b) { return a.localeCompare(b, "ko"); });
+    // 코드포인트 순 정렬: 숫자 → 영문 → 한글(가나다) 순. 구글 시트의 오름차순 정렬과 같다.
+    return Array.from(new Set(arr)).sort(function (a, b) { return a < b ? -1 : a > b ? 1 : 0; });
   }
 
   function onDeptChange() {
