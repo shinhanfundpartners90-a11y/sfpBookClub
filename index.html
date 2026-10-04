@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>희망도서 신청</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar" aria-label="메뉴">
+      <a class="brand" href="#request">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z" />
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M9 7.5h7M9 11h7" />
+        </svg>
+        <span class="brand-name">독서동호회</span>
+      </a>
+      <ul class="nav-list">
+        <li><a class="nav-item" href="#request" data-section="request">도서 신청</a></li>
+        <li><a class="nav-item is-disabled" href="#list" data-section="list">신청 도서 조회 <span class="badge">준비 중</span></a></li>
+        <li><a class="nav-item is-disabled" href="#balance" data-section="balance">잔액 확인 <span class="badge">준비 중</span></a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <!-- 도서 신청 -->
+      <section class="section" id="section-request" data-section="request">
+        <header class="section-header">
+          <h1 class="section-title">도서 신청</h1>
+          <p class="section-desc">읽고 싶은 책을 신청해 주세요. 링크를 제외한 모든 항목은 필수입니다.</p>
+        </header>
+
+        <div class="card">
+          <div class="notice notice-config" id="config-notice" hidden>
+            <code>config.js</code>의 <code>APPS_SCRIPT_URL</code>에 Apps Script 웹 앱 URL을 입력해 주세요.
+          </div>
+
+          <form id="request-form" novalidate>
+            <div class="row-2">
+              <div class="field">
+                <label for="dept">소속</label>
+                <select id="dept" name="dept" required>
+                  <option value="">불러오는 중…</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="name">이름</label>
+                <select id="name" name="name" required disabled>
+                  <option value="">소속을 먼저 선택</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="title">도서명</label>
+              <input id="title" name="title" type="text" required maxlength="200" autocomplete="off" />
+            </div>
+
+            <div class="field">
+              <label for="publisher">출판사</label>
+              <input id="publisher" name="publisher" type="text" required maxlength="200" autocomplete="off" />
+            </div>
+
+            <div class="field">
+              <label for="price">가격</label>
+              <div class="input-suffix">
+                <input id="price" name="price" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" />
+                <span class="suffix">원</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="link">링크 <span class="optional">선택</span></label>
+              <input id="link" name="link" type="url" maxlength="1000" placeholder="https://" autocomplete="off" />
+            </div>
+
+            <button class="btn-primary" id="submit-btn" type="submit">신청하기</button>
+          </form>
+        </div>
+
+        <div class="banner" id="banner" role="status" hidden></div>
+      </section>
+
+      <!-- 신청 도서 조회 (준비 중) -->
+      <section class="section" id="section-list" data-section="list" hidden>
+        <header class="section-header">
+          <h1 class="section-title">신청 도서 조회</h1>
+          <p class="section-desc">회차별로 신청된 도서를 확인합니다.</p>
+        </header>
+        <div class="card card-empty">준비 중입니다.</div>
+      </section>
+
+      <!-- 잔액 확인 (준비 중) -->
+      <section class="section" id="section-balance" data-section="balance" hidden>
+        <header class="section-header">
+          <h1 class="section-title">잔액 확인</h1>
+          <p class="section-desc">남은 도서 지원금을 확인합니다.</p>
+        </header>
+        <div class="card card-empty">준비 중입니다.</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
