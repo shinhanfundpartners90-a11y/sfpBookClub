@@ -75,10 +75,69 @@
 
   // ---------- 배너 ----------
 
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function showBanner(type, message, el) {
     el = el || banner;
-    el.textContent = message;
     el.className = "banner is-" + type;
+
+    var iconSvg = "";
+    if (type === "success") {
+      iconSvg = '<svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+    } else if (type === "error") {
+      iconSvg = '<svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+    } else {
+      iconSvg = '<svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+    }
+
+    var htmlContent = "";
+    var remainingMatch = message.match(/\(남은 지원금 ([^\)]+)\)/);
+
+    if (remainingMatch) {
+      var mainMsg = message.replace(remainingMatch[0], "").trim();
+      var parts = mainMsg.split(" — ");
+      var primaryText = parts[0];
+      var subText = parts[1] ? ' <span class="banner-subtext">— ' + escapeHtml(parts[1]) + '</span>' : "";
+
+      var remainingVal = remainingMatch[1];
+      var isMinus = remainingVal.indexOf("-") !== -1;
+      var badgeClass = isMinus ? "banner-badge is-over" : "banner-badge";
+      var walletIcon = '<svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="18" y1="12" x2="14" y2="12"/></svg>';
+
+      htmlContent = '<div class="banner-body">' +
+        '<div class="banner-title"><span class="banner-main-text">' + escapeHtml(primaryText) + '</span>' + subText + '</div>' +
+        '<div class="' + badgeClass + '">' + walletIcon + '남은 지원금 <strong>' + escapeHtml(remainingVal) + '</strong></div>' +
+        '</div>';
+    } else {
+      var parts = message.split(" — ");
+      if (parts.length > 1) {
+        htmlContent = '<div class="banner-body"><div class="banner-title"><span class="banner-main-text">' + escapeHtml(parts[0]) + '</span> <span class="banner-subtext">— ' + escapeHtml(parts[1]) + '</span></div></div>';
+      } else {
+        htmlContent = '<div class="banner-body"><div class="banner-title"><span class="banner-main-text">' + escapeHtml(message) + '</span></div></div>';
+      }
+    }
+
+    var closeBtn = '<button type="button" class="banner-close" aria-label="닫기" title="닫기">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+      '</button>';
+
+    el.innerHTML = '<div class="banner-icon-wrap">' + iconSvg + '</div>' + htmlContent + closeBtn;
+
+    var btn = el.querySelector(".banner-close");
+    if (btn) {
+      btn.onclick = function () {
+        el.hidden = true;
+      };
+    }
+
     el.hidden = false;
   }
 

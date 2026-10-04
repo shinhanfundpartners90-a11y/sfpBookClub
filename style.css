@@ -987,18 +987,17 @@ input[type="password"] {
 .banner {
   margin-top: 20px;
   padding: 16px 20px;
-  border-radius: var(--radius-input);
+  border-radius: 16px;
   font-size: 14.5px;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 10px;
-  animation: slideUp 0.2s ease-out;
-}
-
-/* display:flex가 hidden 속성의 display:none을 덮어쓰지 않도록 */
-.banner[hidden] {
-  display: none;
+  gap: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: bannerPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 @keyframes slideUp {
@@ -1006,16 +1005,153 @@ input[type="password"] {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.banner.is-success {
-  background-color: var(--google-green-light);
-  border: 1px solid var(--google-green-border);
-  color: var(--google-green);
+@keyframes bannerPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
+/* display:flex가 hidden 속성의 display:none을 덮어쓰지 않도록 */
+.banner[hidden] {
+  display: none !important;
+}
+
+/* Success Banner Styling (Google Blue & Crisp White Theme) */
+.banner.is-success {
+  background: linear-gradient(135deg, #f0f6ff 0%, #e8f0fe 100%);
+  border: 1px solid #c7d2fe;
+  color: #042c71;
+}
+
+.banner.is-success .banner-icon-wrap {
+  background-color: #dbeafe;
+  color: #0b57d0;
+  box-shadow: inset 0 0 0 1px rgba(11, 87, 208, 0.15);
+}
+
+/* Error Banner Styling */
 .banner.is-error {
-  background-color: var(--google-red-light);
-  border: 1px solid var(--google-red-border);
-  color: var(--google-red);
+  background: linear-gradient(135deg, #fff5f5 0%, #fce8e6 100%);
+  border: 1px solid #fecaca;
+  color: #7f1d1d;
+}
+
+.banner.is-error .banner-icon-wrap {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.1);
+}
+
+/* Icon Wrap */
+.banner-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.banner-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Body layout */
+.banner-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  line-height: 1.45;
+}
+
+.banner-title {
+  font-size: 14.5px;
+  color: inherit;
+}
+
+.banner-main-text {
+  font-weight: 600;
+  color: inherit;
+}
+
+.banner-subtext {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Remaining Balance Badge Capsule */
+.banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: #ffffff;
+  border-radius: 100px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0b57d0;
+  box-shadow: 0 1px 4px rgba(11, 87, 208, 0.1), 0 0 0 1px rgba(11, 87, 208, 0.18);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.banner-badge strong {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0842a0;
+}
+
+.banner-badge.is-over {
+  color: #991b1b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(153, 27, 27, 0.15);
+}
+
+.banner-badge.is-over strong {
+  color: #dc2626;
+}
+
+.badge-icon {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.2;
+}
+
+/* Banner Close Button */
+.banner-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  opacity: 0.55;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+  margin-left: 4px;
+}
+
+.banner-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.banner-close:hover {
+  opacity: 0.95;
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 /* ---------- Responsive Mobile Navigation ---------- */
