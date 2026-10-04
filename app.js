@@ -27,10 +27,13 @@
 
   // ---------- 네비게이션 (hash 기반) ----------
 
-  var SECTIONS = ["request", "list", "balance"];
+  var SECTIONS = ["request", "list", "admin"];
+  var ADMIN_SESSION_KEY = "bookclub.admin";
+  var currentSection = "request";
 
   function showSection(key) {
     if (SECTIONS.indexOf(key) === -1) key = "request";
+    currentSection = key;
     document.querySelectorAll(".section").forEach(function (sec) {
       sec.hidden = sec.dataset.section !== key;
     });
@@ -39,10 +42,35 @@
     });
   }
 
-  window.addEventListener("hashchange", function () {
-    showSection(location.hash.replace("#", ""));
-  });
-  showSection(location.hash.replace("#", ""));
+  // 관리자 요청마다 서버가 비밀번호를 재검사하므로, 탭이 살아있는 동안 sessionStorage에 보관한다.
+  function getAdminPassword() {
+    try { return sessionStorage.getItem(ADMIN_SESSION_KEY) || ""; } catch (e) { return ""; }
+  }
+
+  function isAdminAuthed() {
+    return !!getAdminPassword();
+  }
+
+  function setAdminAuthed(password) {
+    try { sessionStorage.setItem(ADMIN_SESSION_KEY, password); } catch (e) {}
+  }
+
+  function clearAdminAuthed() {
+    try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch (e) {}
+  }
+
+  // 관리자 페이지는 인증된 세션(탭)에서만 열린다. 아니면 모달을 띄우고 현재 페이지에 머문다.
+  function route() {
+    var key = location.hash.replace("#", "");
+    if (key === "admin" && !isAdminAuthed()) {
+      openAdminModal();
+      return;
+    }
+    showSection(key);
+  }
+
+  window.addEventListener("hashchange", route);
+  // 첫 route()는 모달 요소가 준비된 뒤(아래 관리자 인증 모달 섹션 끝)에서 호출한다.
 
   // ---------- 배너 ----------
 
@@ -338,9 +366,84 @@
       });
   });
 
+  // ---------- 관리자 인증 모달 ----------
+
+  var adminModal = $("#admin-modal");
+  var adminForm = $("#admin-form");
+  var adminPw = $("#admin-password");
+  var adminError = $("#admin-error");
+  var adminSubmit = $("#admin-submit");
+
+  function openAdminModal() {
+    adminPw.value = "";
+    adminError.hidden = true;
+    setInvalid(adminPw, false);
+    adminModal.hidden = false;
+    setTimeout(function () { adminPw.focus(); }, 0);
+  }
+
+  function closeAdminModal() {
+    adminModal.hidden = true;
+    // 해시는 #admin으로 바뀌어 있으므로 머물던 페이지로 되돌린다.
+    if (location.hash.replace("#", "") === "admin") {
+      history.replaceState(null, "", "#" + currentSection);
+    }
+    showSection(currentSection);
+  }
+
+  function showAdminError(msg) {
+    adminError.textContent = msg;
+    adminError.hidden = false;
+    setInvalid(adminPw, true);
+    adminPw.focus();
+    adminPw.select();
+  }
+
+  $("#admin-cancel").addEventListener("click", closeAdminModal);
+  adminModal.addEventListener("click", function (ev) {
+    if (ev.target === adminModal) closeAdminModal();
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !adminModal.hidden) closeAdminModal();
+  });
+  adminPw.addEventListener("input", function () {
+    adminError.hidden = true;
+    setInvalid(adminPw, false);
+  });
+
+  adminForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var password = adminPw.value;
+    if (!password) { showAdminError("비밀번호를 입력해 주세요."); return; }
+
+    adminSubmit.disabled = true;
+    adminPw.disabled = true;
+
+    fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "auth", password: password }),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "인증에 실패했습니다.");
+        setAdminAuthed(password);
+        adminModal.hidden = true;
+        showSection("admin");
+      })
+      .catch(function (err) {
+        showAdminError(err.message || "네트워크 오류가 발생했습니다.");
+      })
+      .finally(function () {
+        adminSubmit.disabled = false;
+        adminPw.disabled = false;
+      });
+  });
+
     if (ev.target.classList) setInvalid(ev.target, false);
   });
   deptSel.addEventListener("change", onDeptChange);
+  route();
 
   // ---------- 초기화 ----------
 

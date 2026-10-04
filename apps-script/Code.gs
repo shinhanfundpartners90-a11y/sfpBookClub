@@ -135,10 +135,30 @@ function doGet(e) {
 
 // ---------- POST ----------
 
+// 관리자 비밀번호는 코드에 두지 않고 스크립트 속성 ADMIN_PASSWORD에 저장한다.
+// (Apps Script 편집기 → 프로젝트 설정 → 스크립트 속성)
+function checkAdminPassword(password) {
+  var expected = PropertiesService.getScriptProperties().getProperty("ADMIN_PASSWORD");
+  if (!expected) throw new Error("스크립트 속성 ADMIN_PASSWORD가 설정되지 않았습니다.");
+  return String(password || "") === expected;
+}
+
 function doPost(e) {
+  var data = JSON.parse(e.postData.contents);
+
+  if (data.action === "auth") {
+    try {
+      if (!checkAdminPassword(data.password)) throw new Error("비밀번호가 올바르지 않습니다.");
+      return json({ ok: true });
+    } catch (err) {
+      return json({ ok: false, error: err.message });
+    }
+  }
+
+  return submitRequest(data);
+}
   var lock = LockService.getScriptLock();
   try {
-    var data = JSON.parse(e.postData.contents);
     var payload = validate(data);
     var round = readCurrentRound();
 

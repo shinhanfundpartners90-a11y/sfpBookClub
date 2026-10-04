@@ -45,13 +45,12 @@
           </a>
         </li>
         <li>
-          <a class="nav-item is-disabled" href="#balance" data-section="balance">
+          <a class="nav-item" href="#admin" data-section="admin">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span class="nav-label">잔액 확인</span>
-            <span class="badge">준비 중</span>
+            <span class="nav-label">관리자 페이지</span>
           </a>
         </li>
       </ul>
@@ -201,11 +200,11 @@
         </div>
       </section>
 
-      <!-- 잔액 확인 (준비 중) -->
-      <section class="section" id="section-balance" data-section="balance" hidden>
+      <!-- 관리자 페이지 -->
+      <section class="section" id="section-admin" data-section="admin" hidden>
         <header class="section-header">
-          <h1 class="section-title">잔액 확인</h1>
-          <p class="section-desc">남은 도서 지원금을 확인합니다.</p>
+          <h1 class="section-title">관리자 페이지</h1>
+          <p class="section-desc">회원 명부와 신청 도서를 관리합니다.</p>
         </header>
         <div class="card card-empty">
           <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -215,6 +214,32 @@
         </div>
       </section>
     </main>
+  </div>
+
+
+  <!-- 관리자 비밀번호 모달 -->
+  <div class="modal-backdrop" id="admin-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      </div>
+      <h2 class="modal-title" id="admin-modal-title">관리자 인증</h2>
+      <p class="modal-desc">관리자 페이지에 접근하려면 비밀번호를 입력하세요.</p>
+      <form id="admin-form" novalidate>
+        <div class="field">
+          <label for="admin-password">비밀번호</label>
+          <input id="admin-password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <p class="modal-error" id="admin-error" hidden></p>
+        <div class="modal-actions">
+          <button class="btn-text" id="admin-cancel" type="button">취소</button>
+          <button class="btn-primary btn-compact" id="admin-submit" type="submit"><span>확인</span></button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="config.js"></script>
