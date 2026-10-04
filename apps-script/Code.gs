@@ -13,6 +13,8 @@
 var SHEET_REQUESTS = "도서신청내역";
 var SHEET_MEMBERS = "명부";
 var SHEET_CONFIG = "설정";
+var SHEET_MEETINGS = "자율 모임 일정";   // 일자 | 인원 | 대표인
+var MEETING_SUPPORT_PER_PERSON = 15000; // 자율 모임 1인당 지원금(원)
 var MAX_LEN = 200;
 
 // ---------- 공통 ----------
@@ -128,6 +130,17 @@ function doGet(e) {
       items.forEach(function (it) { it.editable = isEditableByOwner(it, currentRound); });
       return json({ ok: true, items: items, budget: member.budget, used: used, remaining: member.budget - used });
     }
+    if (action === "meetings") {
+      // 기간(yyyyMMdd, 양끝 포함) 안의 자율 모임 일정. from/to가 없으면 오늘 이후 전체.
+      var from = normalizeYmd(e.parameter.from) || todayYmd();
+      var to = normalizeYmd(e.parameter.to) || "99991231";
+      var today = todayYmd();
+      var meetings = readMeetings()
+        .filter(function (m) { return m.date >= from && m.date <= to; })
+        .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      meetings.forEach(function (m) { m.editable = m.date >= today; });
+      return json({ ok: true, items: meetings, supportPerPerson: MEETING_SUPPORT_PER_PERSON, today: today });
+    }
     if (action === "members") {
       // 지원금은 외부에 노출하지 않고 이름·소속만 내려준다.
       var members = readMembers().map(function (m) { return { name: m.name, dept: m.dept }; });
@@ -164,6 +177,14 @@ function doPost(e) {
   if (data.action === "admin") {
     try {
       return json(handleAdmin(data));
+    } catch (err) {
+      return json({ ok: false, error: err.message });
+    }
+  }
+
+  if (data.action === "meeting.create" || data.action === "meeting.update" || data.action === "meeting.delete") {
+    try {
+      return json(handleMeeting(data));
     } catch (err) {
       return json({ ok: false, error: err.message });
     }
@@ -408,6 +429,123 @@ function submitRequest(data) {
     return json({ ok: true, round: round, remaining: remaining - payload.price });
   } catch (err) {
     return json({ ok: false, error: err.message });
+  } finally {
+    try { lock.releaseLock(); } catch (ignored) {}
+  }
+}
+
+// ---------- 자율 모임 신청 ----------
+
+function todayYmd() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
+}
+
+// Date / 20260428 / "2026-04-28" / "2026.04.28" → "20260428". 아니면 "".
+function normalizeYmd(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyyMMdd");
+  var d = String(v === undefined || v === null ? "" : v).replace(/\D/g, "");
+  return d.length === 8 ? d : "";
+}
+
+function isValidYmd(ymd) {
+  if (!/^\d{8}$/.test(ymd)) return false;
+  var y = Number(ymd.slice(0, 4)), m = Number(ymd.slice(4, 6)), d = Number(ymd.slice(6, 8));
+  var dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+// "3명" / 3 → 3
+function toCount(v) {
+  var n = Number(String(v === undefined || v === null ? "" : v).replace(/\D/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+// 자율 모임 일정 탭 → [{row, date, count, leader}] (빈 행 제외)
+function readMeetings() {
+  var sheet = getSheet(SHEET_MEETINGS);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var rows = sheet.getRange(2, 1, last - 1, 3).getValues();
+  var out = [];
+  rows.forEach(function (r, i) {
+    var date = normalizeYmd(r[0]), count = toCount(r[1]), leader = String(r[2]).trim();
+    if (!date && !count && !leader) return;
+    out.push({ row: i + 2, date: date, count: count, leader: leader });
+  });
+  return out;
+}
+
+function validateMeeting(data) {
+  var date = normalizeYmd(data.date);
+  var countRaw = str(data.count);
+  var leaderName = str(data.leaderName);
+  var leaderDept = str(data.leaderDept);
+
+  if (!leaderDept) throw new Error("소속을 선택해 주세요.");
+  if (!leaderName) throw new Error("대표인을 선택해 주세요.");
+  if (!date) throw new Error("일자를 입력해 주세요.");
+  if (!isValidYmd(date)) throw new Error("일자가 올바르지 않습니다.");
+  if (date < todayYmd()) throw new Error("오늘 이후 날짜만 신청할 수 있습니다.");
+  if (!/^\d+$/.test(countRaw) || Number(countRaw) < 1) throw new Error("인원은 1명 이상의 정수로 입력해 주세요.");
+  if (Number(countRaw) > 999) throw new Error("인원이 너무 많습니다.");
+
+  if (!findMember(leaderName, leaderDept)) throw new Error("소속과 이름을 확인하세요.");
+
+  return { date: date, count: Number(countRaw), leader: leaderName };
+}
+
+function assertNoDuplicateMeeting(date, leader, excludeRow) {
+  var dup = readMeetings().some(function (m) {
+    return m.row !== excludeRow && m.date === date && m.leader === leader;
+  });
+  if (dup) throw new Error("같은 날짜에 이미 신청한 모임이 있습니다.");
+}
+
+// 목록을 받은 뒤 시트가 바뀌어 행이 밀렸는지, 대표인 본인인지, 아직 지나지 않은 모임인지 확인한다.
+function getMeetingChecked(row, orig, leaderName, leaderDept) {
+  var sheet = getSheet(SHEET_MEETINGS);
+  row = Number(row);
+  if (!row || row < 2 || row > sheet.getLastRow()) {
+    throw new Error("대상 모임을 찾을 수 없습니다. 다시 조회해 주세요.");
+  }
+  var r = sheet.getRange(row, 1, 1, 3).getValues()[0];
+  var cur = { date: normalizeYmd(r[0]), count: toCount(r[1]), leader: String(r[2]).trim() };
+  var o = orig || {};
+  if (cur.date !== normalizeYmd(o.date) || cur.leader !== str(o.leader)) {
+    throw new Error("모임 일정이 변경되어 대상이 일치하지 않습니다. 다시 조회해 주세요.");
+  }
+  if (!findMember(str(leaderName), str(leaderDept)) || str(leaderName) !== cur.leader) {
+    throw new Error("대표인 본인만 수정·삭제할 수 있습니다.");
+  }
+  if (cur.date < todayYmd()) {
+    throw new Error("이미 지난 모임은 수정·삭제할 수 없습니다.");
+  }
+  return { sheet: sheet, item: cur };
+}
+
+function handleMeeting(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    if (data.action === "meeting.create") {
+      var m = validateMeeting(data);
+      assertNoDuplicateMeeting(m.date, m.leader, -1);
+      getSheet(SHEET_MEETINGS).appendRow([m.date, m.count + "명", m.leader]);
+      return { ok: true, support: m.count * MEETING_SUPPORT_PER_PERSON };
+    }
+
+    var found = getMeetingChecked(data.row, data.orig, data.leaderName, data.leaderDept);
+
+    if (data.action === "meeting.delete") {
+      found.sheet.deleteRow(Number(data.row));
+      return { ok: true };
+    }
+
+    // meeting.update: 일자·인원만 바꾼다. 대표인은 유지.
+    var u = validateMeeting(data);
+    assertNoDuplicateMeeting(u.date, u.leader, Number(data.row));
+    found.sheet.getRange(Number(data.row), 1, 1, 3).setValues([[u.date, u.count + "명", u.leader]]);
+    return { ok: true, support: u.count * MEETING_SUPPORT_PER_PERSON };
   } finally {
     try { lock.releaseLock(); } catch (ignored) {}
   }

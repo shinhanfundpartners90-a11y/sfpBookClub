@@ -45,6 +45,14 @@
           </a>
         </li>
         <li>
+          <a class="nav-item" href="#meeting" data-section="meeting">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span class="nav-label">자율 모임 신청</span>
+          </a>
+        </li>
+        <li>
           <a class="nav-item" href="#admin" data-section="admin">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -206,6 +214,105 @@
             </table>
           </div>
           <p class="result-note">현재 회차의 '신청완료' 상태인 신청만 수정·삭제할 수 있습니다.</p>
+        </div>
+      </section>
+
+      <!-- 자율 모임 신청 -->
+      <section class="section" id="section-meeting" data-section="meeting" hidden>
+        <header class="section-header">
+          <h1 class="section-title">자율 모임 신청</h1>
+          <p class="section-desc">모임 날짜와 인원, 대표인을 입력해 신청합니다. 본인이 신청한 예정 모임은 수정하거나 삭제할 수 있습니다.</p>
+        </header>
+
+        <div class="card">
+          <div class="card-top-accent"></div>
+          <form id="meeting-form" novalidate>
+            <div class="row-2">
+              <div class="field">
+                <label for="mt-date">일자</label>
+                <input id="mt-date" name="date" type="date" required />
+              </div>
+              <div class="field">
+                <label for="mt-count">인원</label>
+                <div class="input-suffix">
+                  <input id="mt-count" name="count" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" />
+                  <span class="suffix">명</span>
+                </div>
+              </div>
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="mt-dept">대표인 소속</label>
+                <div class="select-wrapper">
+                  <select id="mt-dept" name="dept" required><option value="">불러오는 중…</option></select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="mt-name">대표인</label>
+                <div class="select-wrapper">
+                  <select id="mt-name" name="name" required disabled><option value="">소속을 먼저 선택</option></select>
+                </div>
+              </div>
+            </div>
+            <button class="btn-primary" id="mt-btn" type="submit">
+              <span>신청하기</span>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          </form>
+          <p class="support-note">자율 모임은 <strong>개인당 15,000원</strong>씩 지원합니다. 예상 지원 금액: <strong id="mt-support">0원</strong></p>
+        </div>
+
+        <div class="banner" id="mt-banner" role="status" hidden></div>
+
+        <div class="card toolbar-card range-card">
+          <form id="meeting-range" class="filter-bar filter-bar-range" novalidate>
+            <div class="field">
+              <label for="mr-from">시작일</label>
+              <input id="mr-from" type="date" />
+            </div>
+            <div class="field">
+              <label for="mr-to">종료일</label>
+              <input id="mr-to" type="date" />
+            </div>
+            <div class="filter-actions">
+              <button class="btn-text" id="mr-reset" type="button">오늘 이후</button>
+              <button class="btn-primary btn-compact" id="mr-btn" type="submit">
+                <span>조회하기</span>
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.5" y2="16.5" />
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card result-card" id="mt-result">
+          <div class="result-head">
+            <span class="result-title">모임 일정</span>
+            <span class="result-head-right">
+              <span class="result-count" id="mt-count-label"></span>
+              <span class="result-sum" id="mt-sum"></span>
+            </span>
+          </div>
+          <div class="table-wrap">
+            <table class="result-table meeting-table">
+              <thead>
+                <tr>
+                  <th>일자</th>
+                  <th class="num">인원</th>
+                  <th>대표인</th>
+                  <th class="num">지원 금액</th>
+                  <th class="actions">작업</th>
+                </tr>
+              </thead>
+              <tbody id="mt-body">
+                <tr><td class="empty-row" colspan="5">불러오는 중…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="result-note">대표인 본인이 신청한 예정 모임만 수정·삭제할 수 있습니다. 위 폼에서 대표인을 선택하면 해당 모임에 작업 버튼이 나타납니다.</p>
         </div>
       </section>
 
@@ -408,6 +515,34 @@
         <div class="modal-actions">
           <button class="btn-text" id="member-cancel" type="button">취소</button>
           <button class="btn-primary btn-compact" id="member-save" type="submit"><span>저장</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 자율 모임 수정 모달 -->
+  <div class="modal-backdrop" id="meeting-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="meeting-modal-title">
+      <h2 class="modal-title" id="meeting-modal-title">모임 수정</h2>
+      <p class="modal-desc" id="meeting-modal-desc"></p>
+      <form id="meeting-edit-form" novalidate>
+        <div class="row-2">
+          <div class="field">
+            <label for="me-date">일자</label>
+            <input id="me-date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="me-count">인원</label>
+            <div class="input-suffix">
+              <input id="me-count" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" />
+              <span class="suffix">명</span>
+            </div>
+          </div>
+        </div>
+        <p class="modal-error" id="meeting-error" hidden></p>
+        <div class="modal-actions">
+          <button class="btn-text" id="meeting-cancel" type="button">취소</button>
+          <button class="btn-primary btn-compact" id="meeting-save" type="submit"><span>저장</span></button>
         </div>
       </form>
     </div>

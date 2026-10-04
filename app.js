@@ -20,14 +20,18 @@
   var members = []; // [{name, dept}]
 
   // 소속→이름 연동 드롭다운 쌍. 신청 폼과 조회 폼이 같은 구조를 공유한다.
+  var mtDeptSel = $("#mt-dept");
+  var mtNameSel = $("#mt-name");
+
   var selectPairs = [
     { dept: deptSel, name: nameSel },
     { dept: listDeptSel, name: listNameSel },
+    { dept: mtDeptSel, name: mtNameSel },
   ];
 
   // ---------- 네비게이션 (hash 기반) ----------
 
-  var SECTIONS = ["request", "list", "admin"];
+  var SECTIONS = ["request", "list", "meeting", "admin"];
   var ADMIN_SESSION_KEY = "bookclub.admin";
   var currentSection = "request";
 
@@ -68,6 +72,7 @@
     }
     showSection(key);
     if (key === "admin" && !adminMembersLoaded) loadAdminMembers();
+    if (key === "meeting" && !meetingsLoaded) loadMeetingsDefault();
   }
 
   window.addEventListener("hashchange", route);
@@ -557,6 +562,254 @@
       .finally(function () { setRequestSaving(false); });
   });
 
+  // ---------- 자율 모임 신청 ----------
+
+  var SUPPORT_PER_PERSON = 15000;
+  var meetingForm = $("#meeting-form");
+  var mtDate = $("#mt-date");
+  var mtCount = $("#mt-count");
+  var mtBtn = $("#mt-btn");
+  var mtBanner = $("#mt-banner");
+  var mtBody = $("#mt-body");
+  var mrFrom = $("#mr-from");
+  var mrTo = $("#mr-to");
+
+  var meetings = [];
+  var meetingsLoaded = false;
+  var lastMeetingRange = null; // {from, to} yyyyMMdd
+
+  // "2026-04-28"(date input) ↔ "20260428"(시트) ↔ "2026.04.28"(표시)
+  function inputToYmd(v) { return String(v || "").replace(/\D/g, ""); }
+  function ymdToInput(ymd) { return ymd ? ymd.slice(0, 4) + "-" + ymd.slice(4, 6) + "-" + ymd.slice(6, 8) : ""; }
+  function ymdDisplay(ymd) {
+    if (!ymd) return "–";
+    var d = new Date(Number(ymd.slice(0, 4)), Number(ymd.slice(4, 6)) - 1, Number(ymd.slice(6, 8)));
+    var day = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+    return ymd.slice(0, 4) + "." + ymd.slice(4, 6) + "." + ymd.slice(6, 8) + " (" + day + ")";
+  }
+  function todayInput() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  function updateSupportPreview() {
+    var n = Number(mtCount.value);
+    $("#mt-support").textContent = won(n > 0 ? n * SUPPORT_PER_PERSON : 0);
+  }
+  mtCount.addEventListener("input", updateSupportPreview);
+
+  function loadMeetings(from, to) {
+    hideBanner(mtBanner);
+    mtBody.innerHTML = '<tr><td class="empty-row" colspan="5">불러오는 중…</td></tr>';
+    var url = APPS_SCRIPT_URL + "?action=meetings&from=" + encodeURIComponent(from || "") + "&to=" + encodeURIComponent(to || "");
+    return fetch(url, { method: "GET" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "조회에 실패했습니다.");
+        if (!Array.isArray(data.items)) {
+          throw new Error("서버가 자율 모임 기능을 지원하지 않습니다. Apps Script를 최신 Code.gs로 재배포해 주세요.");
+        }
+        meetings = data.items;
+        if (data.supportPerPerson) SUPPORT_PER_PERSON = data.supportPerPerson;
+        meetingsLoaded = true;
+        lastMeetingRange = { from: from, to: to };
+        renderMeetings();
+      })
+      .catch(function (err) {
+        mtBody.innerHTML = '<tr><td class="empty-row" colspan="5">불러오지 못했습니다.</td></tr>';
+        showBanner("error", err.message || "네트워크 오류가 발생했습니다.", mtBanner);
+      });
+  }
+
+  function loadMeetingsDefault() {
+    mrFrom.value = todayInput();
+    mrTo.value = "";
+    return loadMeetings(inputToYmd(mrFrom.value), "");
+  }
+
+  function reloadMeetings() {
+    if (lastMeetingRange) loadMeetings(lastMeetingRange.from, lastMeetingRange.to);
+  }
+
+  function renderMeetings() {
+    var me = mtNameSel.value;
+    var totalPeople = meetings.reduce(function (s, m) { return s + m.count; }, 0);
+    mtBody.innerHTML = "";
+    $("#mt-count-label").textContent = meetings.length + "건";
+    $("#mt-sum").textContent = "총 " + totalPeople + "명 · " + won(totalPeople * SUPPORT_PER_PERSON);
+
+    if (meetings.length === 0) {
+      mtBody.innerHTML = '<tr><td class="empty-row" colspan="5">해당 기간에 신청된 모임이 없습니다.</td></tr>';
+      return;
+    }
+
+    meetings.forEach(function (m) {
+      var tr = document.createElement("tr");
+      tr.appendChild(cell(ymdDisplay(m.date)));
+      tr.appendChild(cell(m.count + "명", "num"));
+      tr.appendChild(cell(m.leader || "–", m.leader ? "" : "muted"));
+      tr.appendChild(cell(won(m.count * SUPPORT_PER_PERSON), "num"));
+
+      var actTd = document.createElement("td");
+      actTd.className = "actions";
+      var mine = me && m.leader === me;
+      if (m.editable && mine) {
+        var edit = iconButton("", "수정", ICON_EDIT);
+        edit.addEventListener("click", function () { openMeetingModal(m); });
+        var del = iconButton("is-danger", "삭제", ICON_DELETE);
+        del.addEventListener("click", function () {
+          openConfirm({
+            title: "모임 삭제",
+            desc: ymdDisplay(m.date) + " " + m.count + "명 모임 신청을 삭제합니다.",
+            okLabel: "삭제",
+            run: function () {
+              return postJson({
+                action: "meeting.delete", row: m.row,
+                orig: { date: m.date, leader: m.leader },
+                leaderName: mtNameSel.value, leaderDept: mtDeptSel.value,
+              });
+            },
+            done: function () {
+              showBanner("success", "모임 신청을 삭제했습니다. — " + ymdDisplay(m.date), mtBanner);
+              reloadMeetings();
+            },
+          });
+        });
+        actTd.appendChild(edit);
+        actTd.appendChild(del);
+      } else {
+        actTd.textContent = "–";
+        actTd.classList.add("muted");
+        actTd.title = m.editable ? "대표인 본인만 수정·삭제할 수 있습니다." : "이미 지난 모임입니다.";
+      }
+      tr.appendChild(actTd);
+      mtBody.appendChild(tr);
+    });
+  }
+
+  // 대표인을 바꾸면 작업 버튼 표시가 달라진다
+  mtNameSel.addEventListener("change", function () { if (meetingsLoaded) renderMeetings(); });
+  mtDeptSel.addEventListener("change", function () { if (meetingsLoaded) renderMeetings(); });
+
+  $("#meeting-range").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var from = inputToYmd(mrFrom.value), to = inputToYmd(mrTo.value);
+    if (from && to && from > to) {
+      showBanner("error", "시작일이 종료일보다 늦습니다.", mtBanner);
+      return;
+    }
+    loadMeetings(from, to);
+  });
+  $("#mr-reset").addEventListener("click", loadMeetingsDefault);
+
+  function setMeetingSubmitting(on) {
+    mtBtn.disabled = on;
+    mtBtn.querySelector("span").textContent = on ? "신청 중…" : "신청하기";
+    meetingForm.querySelectorAll("input, select").forEach(function (el) {
+      if (el === mtNameSel && !mtDeptSel.value) return;
+      el.disabled = on;
+    });
+  }
+
+  meetingForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    hideBanner(mtBanner);
+
+    var date = inputToYmd(mtDate.value);
+    var count = mtCount.value.trim();
+    var dept = mtDeptSel.value, name = mtNameSel.value;
+
+    var fail = function (el, msg) { setInvalid(el, true); el.focus(); showBanner("error", msg, mtBanner); };
+    if (!date) return fail(mtDate, "일자를 선택해 주세요.");
+    if (date < inputToYmd(todayInput())) return fail(mtDate, "오늘 이후 날짜만 신청할 수 있습니다.");
+    if (!/^\d+$/.test(count) || Number(count) < 1) return fail(mtCount, "인원은 1명 이상의 정수로 입력해 주세요.");
+    if (!dept) return fail(mtDeptSel, "대표인 소속을 선택해 주세요.");
+    if (!name) return fail(mtNameSel, "대표인을 선택해 주세요.");
+    if (!isMember(dept, name)) { setInvalid(mtDeptSel, true); return fail(mtNameSel, "소속과 이름을 확인하세요."); }
+
+    setMeetingSubmitting(true);
+    postJson({ action: "meeting.create", date: date, count: count, leaderName: name, leaderDept: dept })
+      .then(function (data) {
+        showBanner("success", ymdDisplay(date) + " " + count + "명 모임을 신청했습니다. (지원 금액 " + won(data.support || Number(count) * SUPPORT_PER_PERSON) + ")", mtBanner);
+        mtDate.value = "";
+        mtCount.value = "";
+        updateSupportPreview();
+        reloadMeetings();
+      })
+      .catch(function (err) {
+        showBanner("error", err.message || "네트워크 오류가 발생했습니다.", mtBanner);
+      })
+      .finally(function () { setMeetingSubmitting(false); });
+  });
+  meetingForm.addEventListener("input", function (ev) { if (ev.target.classList) setInvalid(ev.target, false); });
+
+  // --- 모임 수정 모달 ---
+
+  var meetingModal = $("#meeting-modal");
+  var meetingEditForm = $("#meeting-edit-form");
+  var meetingError = $("#meeting-error");
+  var meetingSave = $("#meeting-save");
+  var editingMeeting = null;
+
+  function openMeetingModal(m) {
+    editingMeeting = m;
+    $("#meeting-modal-desc").textContent = "대표인 " + m.leader;
+    $("#me-date").value = ymdToInput(m.date);
+    $("#me-date").min = todayInput();
+    $("#me-count").value = String(m.count);
+    meetingError.hidden = true;
+    meetingEditForm.querySelectorAll("input").forEach(function (el) { setInvalid(el, false); });
+    meetingModal.hidden = false;
+    setTimeout(function () { $("#me-count").focus(); }, 0);
+  }
+
+  function closeMeetingModal() {
+    meetingModal.hidden = true;
+    editingMeeting = null;
+  }
+
+  function showMeetingError(msg, el) {
+    meetingError.textContent = msg;
+    meetingError.hidden = false;
+    if (el) { setInvalid(el, true); el.focus(); }
+  }
+
+  $("#meeting-cancel").addEventListener("click", closeMeetingModal);
+  meetingModal.addEventListener("click", function (ev) { if (ev.target === meetingModal) closeMeetingModal(); });
+  meetingEditForm.addEventListener("input", function (ev) {
+    meetingError.hidden = true;
+    if (ev.target.classList) setInvalid(ev.target, false);
+  });
+
+  meetingEditForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!editingMeeting) return;
+    var m = editingMeeting;
+    var date = inputToYmd($("#me-date").value);
+    var count = $("#me-count").value.trim();
+    if (!date) return showMeetingError("일자를 선택해 주세요.", $("#me-date"));
+    if (date < inputToYmd(todayInput())) return showMeetingError("오늘 이후 날짜만 가능합니다.", $("#me-date"));
+    if (!/^\d+$/.test(count) || Number(count) < 1) return showMeetingError("인원은 1명 이상의 정수로 입력해 주세요.", $("#me-count"));
+
+    meetingSave.disabled = true;
+    meetingSave.querySelector("span").textContent = "저장 중…";
+    postJson({
+      action: "meeting.update", row: m.row,
+      orig: { date: m.date, leader: m.leader },
+      date: date, count: count, leaderName: mtNameSel.value, leaderDept: mtDeptSel.value,
+    })
+      .then(function () {
+        closeMeetingModal();
+        showBanner("success", "모임 신청을 수정했습니다. — " + ymdDisplay(date) + " " + count + "명", mtBanner);
+        reloadMeetings();
+      })
+      .catch(function (err) { showMeetingError(err.message); })
+      .finally(function () {
+        meetingSave.disabled = false;
+        meetingSave.querySelector("span").textContent = "저장";
+      });
+  });
+
   // ---------- 관리자 인증 모달 ----------
 
   var adminModal = $("#admin-modal");
@@ -935,6 +1188,7 @@
   document.addEventListener("keydown", function (ev) {
     if (ev.key !== "Escape") return;
     if (!memberModal.hidden) closeMemberModal();
+    if (!meetingModal.hidden) closeMeetingModal();
     if (!requestModal.hidden) closeRequestModal();
     if (!confirmModal.hidden) closeConfirmModal();
   });
