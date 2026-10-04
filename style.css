@@ -752,6 +752,8 @@ input[type="date"] {
   appearance: none;
   display: flex;            /* iOS Safari: 안쪽 값을 세로 가운데에 놓기 위해 */
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -762,6 +764,8 @@ input[type="date"] {
 
 /* iOS Safari: 날짜 값을 왼쪽 정렬하고 위로 치우치지 않게 */
 input[type="date"]::-webkit-date-and-time-value {
+  flex: 1 1 auto;
+  width: 100%;
   text-align: left;
   margin: 0;
   min-height: 0;
