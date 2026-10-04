@@ -1014,15 +1014,157 @@
   });
   $("#req-reload").addEventListener("click", loadAdminRequests);
 
-  $("#req-print").addEventListener("click", function () {
-    if (!adminRequestsLoaded) return;
+  // --- PDF 생성 (jsPDF). 인쇄 창을 거치지 않아 모바일에서도 파일로 내려받을 수 있다. ---
+
+  var PDF_LIBS = [
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js",
+  ];
+  var PDF_FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf";
+  var PDF_FONT_NAME = "NanumGothic";
+  var loadedScripts = {};
+  var pdfFontBase64 = null;
+
+  function loadScriptOnce(url) {
+    if (!loadedScripts[url]) {
+      loadedScripts[url] = new Promise(function (resolve, reject) {
+        var el = document.createElement("script");
+        el.src = url;
+        el.onload = resolve;
+        el.onerror = function () { delete loadedScripts[url]; reject(new Error("라이브러리를 불러오지 못했습니다: " + url)); };
+        document.head.appendChild(el);
+      });
+    }
+    return loadedScripts[url];
+  }
+
+  function arrayBufferToBase64(buf) {
+    var bytes = new Uint8Array(buf);
+    var chunk = 0x8000, parts = [];
+    for (var i = 0; i < bytes.length; i += chunk) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)));
+    }
+    return btoa(parts.join(""));
+  }
+
+  function loadPdfFont() {
+    if (pdfFontBase64) return Promise.resolve(pdfFontBase64);
+    return fetch(PDF_FONT_URL)
+      .then(function (res) {
+        if (!res.ok) throw new Error("한글 글꼴을 불러오지 못했습니다.");
+        return res.arrayBuffer();
+      })
+      .then(function (buf) {
+        pdfFontBase64 = arrayBufferToBase64(buf);
+        return pdfFontBase64;
+      });
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  function buildRequestsPdf(fontBase64) {
     var list = filteredRequests();
     var total = list.reduce(function (s, it) { return s + it.price; }, 0);
     var now = new Date();
-    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
-    var stamp = now.getFullYear() + "." + pad(now.getMonth() + 1) + "." + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
-    $("#print-meta").textContent = "출력일시 " + stamp + "  |  조건: " + activeFilterSummary() + "  |  " + list.length + "건, 합계 " + won(total);
-    window.print();
+    var stamp = now.getFullYear() + "." + pad2(now.getMonth() + 1) + "." + pad2(now.getDate()) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+
+    var doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.addFileToVFS(PDF_FONT_NAME + ".ttf", fontBase64);
+    doc.addFont(PDF_FONT_NAME + ".ttf", PDF_FONT_NAME, "normal");
+    doc.setFont(PDF_FONT_NAME);
+
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var margin = 12;
+
+    doc.setFontSize(16);
+    doc.setTextColor(0);
+    doc.text("희망도서 신청 내역", margin, 16);
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    doc.text("출력일시 " + stamp + "  |  조건: " + activeFilterSummary() + "  |  " + list.length + "건, 합계 " + won(total), margin, 22);
+
+    var body = list.map(function (it) {
+      var remaining = (it.remaining === null || it.remaining === undefined)
+        ? "명부 없음"
+        : won(it.remaining) + (it.remaining < 0 ? " (초과)" : "");
+      return [
+        it.name, it.dept, it.location || "–", it.title, it.publisher,
+        won(it.price), it.round ? it.round + "회차" : "–", it.status || "–",
+        it.date || "–", it.link ? "있음" : "–", remaining,
+      ];
+    });
+
+    doc.autoTable({
+      head: [["이름", "소속", "위치", "도서", "출판사", "가격", "회차", "단계", "신청일자", "링크", "잔액"]],
+      body: body,
+      startY: 27,
+      margin: { left: margin, right: margin, bottom: 14 },
+      styles: { font: PDF_FONT_NAME, fontSize: 8, cellPadding: 1.8, lineColor: [187, 187, 187], lineWidth: 0.2, textColor: 0, overflow: "linebreak" },
+      headStyles: { fillColor: [238, 238, 238], textColor: 0, fontStyle: "normal" },
+      columnStyles: {
+        3: { cellWidth: 70 },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        10: { halign: "right" },
+      },
+      didParseCell: function (data) {
+        if (data.section === "body" && data.column.index === 10 && /초과/.test(data.cell.raw)) {
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
+      didDrawPage: function () {
+        var n = doc.internal.getNumberOfPages();
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text(String(n), pageW - margin, pageH - 7, { align: "right" });
+      },
+    });
+
+    // 전체 페이지 수가 확정된 뒤 "n / N" 형식으로 다시 쓴다.
+    var pages = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(pageW - margin - 20, pageH - 11, 20, 6, "F");
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(i + " / " + pages, pageW - margin, pageH - 7, { align: "right" });
+    }
+
+    var fileName = "희망도서_신청내역_" + now.getFullYear() + pad2(now.getMonth() + 1) + pad2(now.getDate()) + ".pdf";
+    return { doc: doc, fileName: fileName };
+  }
+
+  function setPdfBusy(on) {
+    var btn = $("#req-print");
+    btn.disabled = on;
+    btn.querySelector("span").textContent = on ? "PDF 만드는 중…" : "PDF 저장";
+  }
+
+  $("#req-print").addEventListener("click", function () {
+    if (!adminRequestsLoaded) return;
+    hideBanner(reqBanner);
+    setPdfBusy(true);
+
+    Promise.all([
+      loadScriptOnce(PDF_LIBS[0]).then(function () { return loadScriptOnce(PDF_LIBS[1]); }),
+      loadPdfFont(),
+    ])
+      .then(function (results) {
+        var out = buildRequestsPdf(results[1]);
+        try {
+          out.doc.save(out.fileName);
+        } catch (e) {
+          // 앱 내 브라우저 등 다운로드가 막힌 환경: 새 탭으로 열어 공유/저장하게 한다.
+          window.open(out.doc.output("bloburl"), "_blank");
+        }
+        showBanner("success", "PDF를 만들었습니다. — " + out.fileName, reqBanner);
+      })
+      .catch(function (err) {
+        showBanner("error", "PDF를 만들지 못했습니다: " + (err.message || err), reqBanner);
+      })
+      .finally(function () { setPdfBusy(false); });
   });
 
   route();
