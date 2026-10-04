@@ -642,8 +642,8 @@ input[type="number"] {
 .result-table tfoot .row-balance th,
 .result-table tfoot .row-balance td {
   border-bottom: none;
-  background-color: var(--google-green-light);
-  color: var(--google-green);
+  background-color: var(--google-blue-light);
+  color: var(--google-blue-hover);
   font-weight: 700;
   font-size: 15px;
 }
@@ -651,7 +651,7 @@ input[type="number"] {
 .result-table tfoot .row-balance .muted {
   font-weight: 500;
   font-size: 13px;
-  color: var(--google-green);
+  color: var(--google-blue);
   text-align: left;
 }
 
