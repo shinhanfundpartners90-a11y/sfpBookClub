@@ -10,7 +10,20 @@
   var banner = $("#banner");
   var configNotice = $("#config-notice");
 
+  var listForm = $("#list-form");
+  var listDeptSel = $("#list-dept");
+  var listNameSel = $("#list-name");
+  var listBtn = $("#list-btn");
+  var listBanner = $("#list-banner");
+  var listResult = $("#list-result");
+
   var members = []; // [{name, dept}]
+
+  // 소속→이름 연동 드롭다운 쌍. 신청 폼과 조회 폼이 같은 구조를 공유한다.
+  var selectPairs = [
+    { dept: deptSel, name: nameSel },
+    { dept: listDeptSel, name: listNameSel },
+  ];
 
   // ---------- 네비게이션 (hash 기반) ----------
 
@@ -33,14 +46,19 @@
 
   // ---------- 배너 ----------
 
-  function showBanner(type, message) {
-    banner.textContent = message;
-    banner.className = "banner is-" + type;
-    banner.hidden = false;
+  function showBanner(type, message, el) {
+    el = el || banner;
+    el.textContent = message;
+    el.className = "banner is-" + type;
+    el.hidden = false;
   }
 
-  function hideBanner() {
-    banner.hidden = true;
+  function hideBanner(el) {
+    (el || banner).hidden = true;
+  }
+
+  function won(n) {
+    return Number(n).toLocaleString("ko-KR") + "원";
   }
 
   // ---------- 명부 로드 → 드롭다운 ----------
@@ -64,18 +82,18 @@
     return Array.from(new Set(arr)).sort(function (a, b) { return a < b ? -1 : a > b ? 1 : 0; });
   }
 
-  function onDeptChange() {
-    var dept = deptSel.value;
+  function onDeptChange(pair) {
+    var dept = pair.dept.value;
     if (!dept) {
-      fillSelect(nameSel, [], "소속을 먼저 선택");
-      nameSel.disabled = true;
+      fillSelect(pair.name, [], "소속을 먼저 선택");
+      pair.name.disabled = true;
       return;
     }
     var names = uniqueSorted(
       members.filter(function (m) { return m.dept === dept; }).map(function (m) { return m.name; })
     );
-    fillSelect(nameSel, names, "이름 선택");
-    nameSel.disabled = false;
+    fillSelect(pair.name, names, "이름 선택");
+    pair.name.disabled = false;
   }
 
   function isMember(dept, name) {
@@ -88,8 +106,11 @@
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || "명부를 불러오지 못했습니다.");
         members = data.members || [];
-        fillSelect(deptSel, uniqueSorted(members.map(function (m) { return m.dept; })), "소속 선택");
-        deptSel.disabled = false;
+        var depts = uniqueSorted(members.map(function (m) { return m.dept; }));
+        selectPairs.forEach(function (pair) {
+          fillSelect(pair.dept, depts, "소속 선택");
+          pair.dept.disabled = false;
+        });
       });
   }
 
@@ -209,7 +230,114 @@
   });
 
   // 입력 시 에러 표시 해제
-  form.addEventListener("input", function (ev) {
+  [form, listForm].forEach(function (f) {
+    f.addEventListener("input", function (ev) {
+      if (ev.target.classList) setInvalid(ev.target, false);
+    });
+  });
+  selectPairs.forEach(function (pair) {
+    pair.dept.addEventListener("change", function () { onDeptChange(pair); });
+  });
+
+  // ---------- 신청 도서 조회 ----------
+
+  function setListLoading(on) {
+    listBtn.disabled = on;
+    listBtn.querySelector("span").textContent = on ? "조회 중…" : "조회하기";
+    listDeptSel.disabled = on;
+    listNameSel.disabled = on || !listDeptSel.value;
+  }
+
+  function cell(text, cls) {
+    var td = document.createElement("td");
+    td.textContent = text;
+    if (cls) td.className = cls;
+    return td;
+  }
+
+  function renderList(data, dept, name) {
+    var body = $("#list-body");
+    body.innerHTML = "";
+
+    if (data.items.length === 0) {
+      var tr = document.createElement("tr");
+      var td = cell("신청한 도서가 없습니다.", "empty-row");
+      td.colSpan = 5;
+      tr.appendChild(td);
+      body.appendChild(tr);
+    }
+
+    data.items.forEach(function (it) {
+      var tr = document.createElement("tr");
+      tr.appendChild(cell(it.title));
+      tr.appendChild(cell(it.publisher));
+      tr.appendChild(cell(won(it.price), "num"));
+      tr.appendChild(cell(it.round ? it.round + "회차" : "", "num"));
+      var linkTd = document.createElement("td");
+      if (it.link) {
+        var a = document.createElement("a");
+        a.href = it.link;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.className = "table-link";
+        a.textContent = "열기";
+        linkTd.appendChild(a);
+      } else {
+        linkTd.textContent = "–";
+        linkTd.className = "muted";
+      }
+      tr.appendChild(linkTd);
+      body.appendChild(tr);
+    });
+
+    $("#list-result-title").textContent = dept + " · " + name;
+    $("#list-result-count").textContent = data.items.length + "건";
+    $("#list-used").textContent = won(data.used);
+    $("#list-remaining").textContent = won(data.remaining);
+    $("#list-budget").textContent = "지원금 " + won(data.budget);
+    listResult.classList.toggle("is-over", data.remaining < 0);
+    listResult.hidden = false;
+  }
+
+  listForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    hideBanner(listBanner);
+
+    var dept = listDeptSel.value;
+    var name = listNameSel.value;
+    setInvalid(listDeptSel, !dept);
+    setInvalid(listNameSel, !name);
+    if (!dept) { listDeptSel.focus(); showBanner("error", "소속을 선택해 주세요.", listBanner); return; }
+    if (!name) { listNameSel.focus(); showBanner("error", "이름을 선택해 주세요.", listBanner); return; }
+    if (!isMember(dept, name)) {
+      setInvalid(listDeptSel, true);
+      setInvalid(listNameSel, true);
+      showBanner("error", "소속과 이름을 확인하세요.", listBanner);
+      return;
+    }
+
+    setListLoading(true);
+    listResult.hidden = true;
+
+    var url = APPS_SCRIPT_URL + "?action=list&dept=" + encodeURIComponent(dept) + "&name=" + encodeURIComponent(name);
+    fetch(url, { method: "GET" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "조회에 실패했습니다.");
+        // 서버가 재배포되지 않아 구버전 Code.gs가 응답하면 items가 없다.
+        if (!Array.isArray(data.items)) {
+          throw new Error("서버가 조회 기능을 지원하지 않습니다. Apps Script를 최신 Code.gs로 재배포해 주세요.");
+        }
+        renderList(data, dept, name);
+      })
+      .catch(function (err) {
+        showBanner("error", err.message || "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", listBanner);
+      })
+      .finally(function () {
+        setListLoading(false);
+      });
+  });
+
     if (ev.target.classList) setInvalid(ev.target, false);
   });
   deptSel.addEventListener("change", onDeptChange);
@@ -218,14 +346,17 @@
 
   if (!APPS_SCRIPT_URL) {
     configNotice.hidden = false;
-    fillSelect(deptSel, [], "설정 필요");
-    form.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = true; });
+    selectPairs.forEach(function (pair) { fillSelect(pair.dept, [], "설정 필요"); });
+    [form, listForm].forEach(function (f) {
+      f.querySelectorAll("input, select, button").forEach(function (el) { el.disabled = true; });
+    });
     return;
   }
 
-  deptSel.disabled = true;
+  selectPairs.forEach(function (pair) { pair.dept.disabled = true; });
   loadMembers().catch(function (err) {
-    fillSelect(deptSel, [], "불러오기 실패");
+    selectPairs.forEach(function (pair) { fillSelect(pair.dept, [], "불러오기 실패"); });
     showBanner("error", "명부를 불러오지 못했습니다: " + err.message);
+    showBanner("error", "명부를 불러오지 못했습니다: " + err.message, listBanner);
   });
 })();

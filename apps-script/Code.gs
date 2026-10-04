@@ -112,6 +112,16 @@ function formatDate(date) {
 function doGet(e) {
   try {
     var action = e && e.parameter && e.parameter.action;
+    if (action === "list") {
+      // 본인 신청 내역 + 잔액. 소속·이름 조합이 명부에 있을 때만 응답한다.
+      var name = String(e.parameter.name || "").trim();
+      var dept = String(e.parameter.dept || "").trim();
+      var member = findMember(name, dept);
+      if (!member) throw new Error("소속과 이름을 확인하세요.");
+      var items = readRequests(name, dept);
+      var used = items.reduce(function (sum, it) { return sum + it.price; }, 0);
+      return json({ ok: true, items: items, budget: member.budget, used: used, remaining: member.budget - used });
+    }
     if (action === "members") {
       // 지원금은 외부에 노출하지 않고 이름·소속만 내려준다.
       var members = readMembers().map(function (m) { return { name: m.name, dept: m.dept }; });

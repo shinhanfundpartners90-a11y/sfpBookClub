@@ -35,14 +35,13 @@
           </a>
         </li>
         <li>
-          <a class="nav-item is-disabled" href="#list" data-section="list">
+          <a class="nav-item" href="#list" data-section="list">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 6h16M4 12h16M4 18h11" />
               <circle cx="18" cy="18" r="3" />
               <path d="m20.2 20.2 1.8 1.8" />
             </svg>
             <span class="nav-label">신청 도서 조회</span>
-            <span class="badge">준비 중</span>
           </a>
         </li>
         <li>
@@ -128,17 +127,77 @@
         <div class="banner" id="banner" role="status" hidden></div>
       </section>
 
-      <!-- 신청 도서 조회 (준비 중) -->
+      <!-- 신청 도서 조회 -->
       <section class="section" id="section-list" data-section="list" hidden>
         <header class="section-header">
           <h1 class="section-title">신청 도서 조회</h1>
-          <p class="section-desc">회차별로 신청된 도서를 확인합니다.</p>
+          <p class="section-desc">소속과 이름을 선택하면 지금까지 신청한 도서와 남은 지원금을 보여줍니다.</p>
         </header>
-        <div class="card card-empty">
-          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
-          </svg>
-          <p class="empty-text">준비 중입니다.</p>
+
+        <div class="card">
+          <div class="card-top-accent"></div>
+          <form id="list-form" class="list-form" novalidate>
+            <div class="row-2">
+              <div class="field">
+                <label for="list-dept">소속</label>
+                <div class="select-wrapper">
+                  <select id="list-dept" name="dept" required>
+                    <option value="">불러오는 중…</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="list-name">이름</label>
+                <div class="select-wrapper">
+                  <select id="list-name" name="name" required disabled>
+                    <option value="">소속을 먼저 선택</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <button class="btn-primary" id="list-btn" type="submit">
+              <span>조회하기</span>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.5" y2="16.5" />
+              </svg>
+            </button>
+          </form>
+        </div>
+
+        <div class="banner" id="list-banner" role="status" hidden></div>
+
+        <div class="card result-card" id="list-result" hidden>
+          <div class="result-head">
+            <span class="result-title" id="list-result-title"></span>
+            <span class="result-count" id="list-result-count"></span>
+          </div>
+          <div class="table-wrap">
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>도서</th>
+                  <th>출판사</th>
+                  <th class="num">가격</th>
+                  <th class="num">회차</th>
+                  <th>링크</th>
+                </tr>
+              </thead>
+              <tbody id="list-body"></tbody>
+              <tfoot>
+                <tr class="row-total">
+                  <th colspan="2">사용 합계</th>
+                  <td class="num" id="list-used"></td>
+                  <td colspan="2"></td>
+                </tr>
+                <tr class="row-balance">
+                  <th colspan="2">잔액</th>
+                  <td class="num" id="list-remaining"></td>
+                  <td colspan="2" class="muted" id="list-budget"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </section>
 
