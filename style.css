@@ -131,9 +131,8 @@ a {
 .brand-logo {
   width: 42px;
   height: 42px;
-  border-radius: 12px;
-  background: var(--google-blue-light);
-  color: var(--google-blue);
+  border-radius: 50%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,12 +142,13 @@ a {
 
 .brand:hover .brand-logo {
   transform: scale(1.05);
-  background: #d3e3fd;
 }
 
 .brand-icon {
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .brand-text {
@@ -1244,8 +1244,8 @@ input[type="password"] {
   }
 
   .brand-icon {
-    width: 20px;
-    height: 20px;
+    width: 100%;
+    height: 100%;
   }
 
   .brand-name {
