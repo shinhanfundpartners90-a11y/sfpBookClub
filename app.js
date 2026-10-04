@@ -599,6 +599,7 @@
   mtCount.addEventListener("input", updateSupportPreview);
 
   function loadMeetings(from, to) {
+    if (!APPS_SCRIPT_URL) return Promise.resolve();
     hideBanner(mtBanner);
     mtBody.innerHTML = '<tr><td class="empty-row" colspan="5">불러오는 중…</td></tr>';
     var url = APPS_SCRIPT_URL + "?action=meetings&from=" + encodeURIComponent(from || "") + "&to=" + encodeURIComponent(to || "");
