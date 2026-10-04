@@ -268,7 +268,7 @@
     pair.dept.addEventListener("change", function () { onDeptChange(pair); });
   });
 
-  // ---------- 신청 도서 조회 ----------
+  // ---------- 신청 도서 확인 ----------
 
   function setListLoading(on) {
     listBtn.disabled = on;
