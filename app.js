@@ -449,6 +449,7 @@
       var key = tab.dataset.tab;
       document.querySelectorAll(".admin-tab").forEach(function (t) { t.classList.toggle("is-active", t === tab); });
       document.querySelectorAll(".admin-panel").forEach(function (p) { p.hidden = p.dataset.panel !== key; });
+      if (key === "requests" && !adminRequestsLoaded) loadAdminRequests();
     });
   });
 
@@ -732,6 +733,151 @@
     if (ev.key !== "Escape") return;
     if (!memberModal.hidden) closeMemberModal();
     if (!confirmModal.hidden) closeConfirmModal();
+  });
+
+  // ---------- 관리자: 신청도서 관리 ----------
+
+  var reqBanner = $("#req-banner");
+  var reqBody = $("#req-body");
+  var rf = {
+    dept: $("#rf-dept"),
+    name: $("#rf-name"),
+    location: $("#rf-location"),
+    round: $("#rf-round"),
+    status: $("#rf-status"),
+    book: $("#rf-book"),
+  };
+
+  var adminRequests = [];
+  var adminRequestsLoaded = false;
+
+  function loadAdminRequests() {
+    if (!isAdminAuthed()) return;
+    hideBanner(reqBanner);
+    reqBody.innerHTML = '<tr><td class="empty-row" colspan="11">불러오는 중…</td></tr>';
+    return adminFetch("requests.list")
+      .then(function (data) {
+        if (!Array.isArray(data.items)) {
+          throw new Error("서버가 신청도서 관리를 지원하지 않습니다. Apps Script를 최신 Code.gs로 재배포해 주세요.");
+        }
+        adminRequests = data.items;
+        adminRequestsLoaded = true;
+        var pick = function (key) { return uniqueSorted(adminRequests.map(function (it) { return it[key]; }).filter(Boolean)); };
+        fillOptions(rf.dept, pick("dept"), true);
+        fillOptions(rf.location, pick("location"), true);
+        fillOptions(rf.status, pick("status"), true);
+        // 회차는 숫자 내림차순
+        var rounds = Array.from(new Set(adminRequests.map(function (it) { return it.round; }).filter(Boolean)))
+          .sort(function (a, b) { return b - a; })
+          .map(String);
+        fillOptions(rf.round, rounds, true);
+        renderRequests();
+      })
+      .catch(function (err) {
+        reqBody.innerHTML = '<tr><td class="empty-row" colspan="11">불러오지 못했습니다.</td></tr>';
+        showBanner("error", err.message, reqBanner);
+      });
+  }
+
+  function filteredRequests() {
+    var dept = rf.dept.value, name = rf.name.value.trim(), loc = rf.location.value;
+    var round = rf.round.value, status = rf.status.value, book = rf.book.value.trim();
+    return adminRequests.filter(function (it) {
+      if (dept && it.dept !== dept) return false;
+      if (loc && it.location !== loc) return false;
+      if (round && String(it.round) !== round) return false;
+      if (status && it.status !== status) return false;
+      if (name && it.name.indexOf(name) === -1) return false;
+      if (book && it.title.indexOf(book) === -1 && it.publisher.indexOf(book) === -1) return false;
+      return true;
+    }).sort(function (a, b) {
+      // 최신 회차 → 최신 신청일자 순
+      if (b.round !== a.round) return b.round - a.round;
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+    });
+  }
+
+  function activeFilterSummary() {
+    var parts = [];
+    if (rf.dept.value) parts.push("소속: " + rf.dept.value);
+    if (rf.name.value.trim()) parts.push("이름: " + rf.name.value.trim());
+    if (rf.location.value) parts.push("위치: " + rf.location.value);
+    if (rf.round.value) parts.push("회차: " + rf.round.value + "회차");
+    if (rf.status.value) parts.push("단계: " + rf.status.value);
+    if (rf.book.value.trim()) parts.push("도서/출판사: " + rf.book.value.trim());
+    return parts.length ? parts.join(" · ") : "전체";
+  }
+
+  function renderRequests() {
+    var list = filteredRequests();
+    var total = list.reduce(function (s, it) { return s + it.price; }, 0);
+    reqBody.innerHTML = "";
+    $("#req-count").textContent = list.length + "건" + (list.length !== adminRequests.length ? " / 전체 " + adminRequests.length + "건" : "");
+    $("#req-sum").textContent = "합계 " + won(total);
+
+    if (list.length === 0) {
+      reqBody.innerHTML = '<tr><td class="empty-row" colspan="11">' +
+        (adminRequests.length ? "조건에 맞는 신청이 없습니다." : "신청 내역이 없습니다.") + "</td></tr>";
+      return;
+    }
+
+    list.forEach(function (it) {
+      var tr = document.createElement("tr");
+      tr.appendChild(cell(it.name));
+      tr.appendChild(cell(it.dept));
+      tr.appendChild(cell(it.location || "–", it.location ? "" : "muted"));
+      tr.appendChild(cell(it.title));
+      tr.appendChild(cell(it.publisher));
+      tr.appendChild(cell(won(it.price), "num"));
+      tr.appendChild(cell(it.round ? it.round + "회차" : "–", "num"));
+      tr.appendChild(cell(it.status || "–", it.status ? "" : "muted"));
+      tr.appendChild(cell(it.date || "–", it.date ? "" : "muted"));
+
+      var linkTd = document.createElement("td");
+      if (it.link) {
+        var a = document.createElement("a");
+        a.href = it.link; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.className = "table-link"; a.textContent = "열기";
+        linkTd.appendChild(a);
+        var pt = document.createElement("span");
+        pt.className = "print-only";
+        pt.textContent = "있음";
+        linkTd.appendChild(pt);
+      } else {
+        linkTd.textContent = "–";
+        linkTd.className = "muted";
+      }
+      tr.appendChild(linkTd);
+
+      if (it.remaining === null || it.remaining === undefined) {
+        tr.appendChild(cell("명부 없음", "num muted"));
+      } else {
+        var over = it.remaining < 0;
+        tr.appendChild(cell(won(it.remaining) + (over ? " (초과)" : ""), "num" + (over ? " cell-over" : "")));
+      }
+      reqBody.appendChild(tr);
+    });
+  }
+
+  Object.keys(rf).forEach(function (k) {
+    rf[k].addEventListener(rf[k].tagName === "SELECT" ? "change" : "input", renderRequests);
+  });
+  $("#req-filter").addEventListener("submit", function (ev) { ev.preventDefault(); });
+  $("#rf-reset").addEventListener("click", function () {
+    Object.keys(rf).forEach(function (k) { rf[k].value = ""; });
+    renderRequests();
+  });
+  $("#req-reload").addEventListener("click", loadAdminRequests);
+
+  $("#req-print").addEventListener("click", function () {
+    if (!adminRequestsLoaded) return;
+    var list = filteredRequests();
+    var total = list.reduce(function (s, it) { return s + it.price; }, 0);
+    var now = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var stamp = now.getFullYear() + "." + pad(now.getMonth() + 1) + "." + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
+    $("#print-meta").textContent = "출력일시 " + stamp + "  |  조건: " + activeFilterSummary() + "  |  " + list.length + "건, 합계 " + won(total);
+    window.print();
   });
 
   route();

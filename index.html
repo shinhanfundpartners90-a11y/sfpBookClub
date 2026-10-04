@@ -276,6 +276,89 @@
             </div>
           </div>
         </div>
+
+        <!-- 신청도서 관리 -->
+        <div class="admin-panel" data-panel="requests" hidden>
+          <div class="card toolbar-card">
+            <form id="req-filter" class="filter-bar filter-bar-6" novalidate>
+              <div class="field">
+                <label for="rf-dept">소속</label>
+                <div class="select-wrapper"><select id="rf-dept"><option value="">전체</option></select></div>
+              </div>
+              <div class="field">
+                <label for="rf-name">이름</label>
+                <input id="rf-name" type="text" placeholder="이름 검색" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="rf-location">위치</label>
+                <div class="select-wrapper"><select id="rf-location"><option value="">전체</option></select></div>
+              </div>
+              <div class="field">
+                <label for="rf-round">회차</label>
+                <div class="select-wrapper"><select id="rf-round"><option value="">전체</option></select></div>
+              </div>
+              <div class="field">
+                <label for="rf-status">단계</label>
+                <div class="select-wrapper"><select id="rf-status"><option value="">전체</option></select></div>
+              </div>
+              <div class="field">
+                <label for="rf-book">도서 / 출판사</label>
+                <input id="rf-book" type="text" placeholder="도서명 또는 출판사 검색" autocomplete="off" />
+              </div>
+              <div class="filter-actions">
+                <button class="btn-text" id="rf-reset" type="button">초기화</button>
+                <button class="btn-icon-only" id="req-reload" type="button" title="새로고침" aria-label="새로고침">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                </button>
+                <button class="btn-primary btn-compact" id="req-print" type="button">
+                  <span>PDF 저장</span>
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="banner" id="req-banner" role="status" hidden></div>
+
+          <div class="card result-card" id="req-result">
+            <div class="print-header" id="print-header" hidden>
+              <h2 class="print-title">희망도서 신청 내역</h2>
+              <p class="print-meta" id="print-meta"></p>
+            </div>
+            <div class="result-head">
+              <span class="result-title">신청 도서 목록</span>
+              <span class="result-head-right">
+                <span class="result-count" id="req-count"></span>
+                <span class="result-sum" id="req-sum"></span>
+              </span>
+            </div>
+            <div class="table-wrap">
+              <table class="result-table req-table">
+                <thead>
+                  <tr>
+                    <th>이름</th>
+                    <th>소속</th>
+                    <th>위치</th>
+                    <th>도서</th>
+                    <th>출판사</th>
+                    <th class="num">가격</th>
+                    <th class="num">회차</th>
+                    <th>단계</th>
+                    <th>신청일자</th>
+                    <th>링크</th>
+                    <th class="num">잔액</th>
+                  </tr>
+                </thead>
+                <tbody id="req-body">
+                  <tr><td class="empty-row" colspan="11">불러오는 중…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
     </main>

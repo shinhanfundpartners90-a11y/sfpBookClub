@@ -244,6 +244,30 @@ function handleAdmin(data) {
     return { ok: true, members: readMemberRows() };
   }
 
+  if (op === "requests.list") {
+    // 전체 신청 내역에 신청자의 위치·지원금·현재 잔액을 붙여 돌려준다.
+    var memberByKey = {};
+    readMemberRows().forEach(function (m) { memberByKey[m.name + "\u0000" + m.dept] = m; });
+
+    var all = readAllRequests();
+    var usedByKey = {};
+    all.forEach(function (it) {
+      var k = it.name + "\u0000" + it.dept;
+      usedByKey[k] = (usedByKey[k] || 0) + it.price;
+    });
+
+    var items = all.map(function (it) {
+      var k = it.name + "\u0000" + it.dept;
+      var m = memberByKey[k];
+      it.location = m ? m.location : "";
+      it.budget = m ? m.budget : null;
+      it.used = usedByKey[k] || 0;
+      it.remaining = m ? m.budget - it.used : null;
+      return it;
+    });
+    return { ok: true, items: items };
+  }
+
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
