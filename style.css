@@ -44,7 +44,6 @@
 
   /* Layout Spacing & Radius */
   --sidebar-w: 280px;
-  --content-max: 680px;
   --radius-pill: 100px;
   --radius-card: 20px;
   --radius-input: 12px;
@@ -240,13 +239,14 @@ a {
 
 .content {
   flex: 1;
+  min-width: 0;
   padding: 40px 48px 64px;
   background-color: var(--bg-main);
-  max-width: calc(var(--content-max) + 96px);
 }
 
+/* 모든 페이지가 본문 폭의 3/4를 쓴다 */
 .section {
-  max-width: var(--content-max);
+  max-width: 75%;
   animation: fadeIn 0.25s ease-out;
 }
 
@@ -751,7 +751,11 @@ input[type="number"] {
 
   .content {
     padding: 24px 20px 48px;
-    max-width: 100%;
+  }
+
+  /* 모바일에서는 폭 제한 없이 화면 전체를 쓴다 */
+  .section {
+    max-width: none;
   }
 
   .section-title {
