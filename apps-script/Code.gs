@@ -58,8 +58,10 @@ function findMember(name, dept) {
 
 // 도서신청내역에서 해당 회원의 신청 행 전체 (전 회차)
 // A=이름 B=소속 C=도서 D=출판사 E=가격 F=회차 G=단계 H=신청일자 I=링크
-function rowToRequest(r) {
+// row = 시트 행 번호. 본인 신청 수정·삭제 시 식별자로 쓴다.
+function rowToRequest(r, row) {
   return {
+    row: row,
     name: String(r[0]).trim(),
     dept: String(r[1]).trim(),
     title: String(r[2]).trim(),
@@ -78,7 +80,7 @@ function readAllRequests() {
   var last = sheet.getLastRow();
   if (last < 2) return [];
   return sheet.getRange(2, 1, last - 1, 9).getValues()
-    .map(rowToRequest)
+    .map(function (r, i) { return rowToRequest(r, i + 2); })
     .filter(function (it) { return it.name || it.dept || it.title; });
 }
 
@@ -120,6 +122,10 @@ function doGet(e) {
       if (!member) throw new Error("소속과 이름을 확인하세요.");
       var items = readRequests(name, dept);
       var used = items.reduce(function (sum, it) { return sum + it.price; }, 0);
+      // 현재 회차의 '신청완료' 건만 본인이 수정·삭제할 수 있다.
+      var currentRound = null;
+      try { currentRound = readCurrentRound(); } catch (ignored) {}
+      items.forEach(function (it) { it.editable = isEditableByOwner(it, currentRound); });
       return json({ ok: true, items: items, budget: member.budget, used: used, remaining: member.budget - used });
     }
     if (action === "members") {
@@ -163,7 +169,76 @@ function doPost(e) {
     }
   }
 
+  if (data.action === "request.update" || data.action === "request.delete") {
+    try {
+      return json(handleOwnRequest(data));
+    } catch (err) {
+      return json({ ok: false, error: err.message });
+    }
+  }
+
   return submitRequest(data);
+}
+
+// ---------- 본인 신청 수정·삭제 ----------
+
+var OWNER_EDITABLE_STATUS = "신청완료";
+
+function isEditableByOwner(it, currentRound) {
+  return currentRound !== null && it.round === currentRound && it.status === OWNER_EDITABLE_STATUS;
+}
+
+// 목록을 받은 뒤 시트가 바뀌어 행이 밀렸는지, 아직 수정 가능한 상태인지 확인한다.
+function getOwnRequestChecked(row, orig, currentRound) {
+  var sheet = getSheet(SHEET_REQUESTS);
+  row = Number(row);
+  if (!row || row < 2 || row > sheet.getLastRow()) {
+    throw new Error("대상 신청을 찾을 수 없습니다. 다시 조회해 주세요.");
+  }
+  var it = rowToRequest(sheet.getRange(row, 1, 1, 9).getValues()[0], row);
+  var o = orig || {};
+  if (it.name !== String(o.name || "").trim() || it.dept !== String(o.dept || "").trim() ||
+      it.title !== String(o.title || "").trim() || it.price !== toAmount(o.price)) {
+    throw new Error("신청 내역이 변경되어 대상이 일치하지 않습니다. 다시 조회해 주세요.");
+  }
+  if (!isEditableByOwner(it, currentRound)) {
+    throw new Error("현재 회차의 '" + OWNER_EDITABLE_STATUS + "' 상태인 신청만 수정·삭제할 수 있습니다.");
+  }
+  return { sheet: sheet, item: it };
+}
+
+function handleOwnRequest(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var currentRound = readCurrentRound();
+    var found = getOwnRequestChecked(data.row, data.orig, currentRound);
+    var it = found.item;
+
+    if (data.action === "request.delete") {
+      found.sheet.deleteRow(it.row);
+      var member = findMember(it.name, it.dept);
+      var usedAfter = readUsedAmount(it.name, it.dept);
+      return { ok: true, remaining: member ? member.budget - usedAfter : null };
+    }
+
+    // request.update: 도서명·출판사·가격·링크만 바꾼다. 이름·소속·회차·단계·신청일자는 유지.
+    var book = validateBookFields(data);
+    var m = findMember(it.name, it.dept);
+    if (!m) throw new Error("소속과 이름을 확인하세요.");
+    var usedOthers = readUsedAmount(it.name, it.dept) - it.price;
+    if (usedOthers + book.price > m.budget) {
+      throw new Error(
+        "잔액이 부족합니다. 지원금 " + won(m.budget) + " 중 " + won(usedOthers) + " 사용, 잔액 " +
+        won(m.budget - usedOthers) + " (변경 가격 " + won(book.price) + ")"
+      );
+    }
+    found.sheet.getRange(it.row, 3, 1, 3).setValues([[book.title, book.publisher, book.price]]);
+    found.sheet.getRange(it.row, 9).setValue(book.link);
+    return { ok: true, remaining: m.budget - usedOthers - book.price };
+  } finally {
+    try { lock.releaseLock(); } catch (ignored) {}
+  }
 }
 
 // ---------- 관리자: 회원 관리 ----------
@@ -338,23 +413,22 @@ function submitRequest(data) {
   }
 }
 
-function validate(data) {
-  var str = function (v) { return (v === undefined || v === null) ? "" : String(v).trim(); };
+function str(v) {
+  return (v === undefined || v === null) ? "" : String(v).trim();
+}
 
-  var name = str(data.name);
-  var dept = str(data.dept);
+// 도서명·출판사·가격·링크 검증 (신규 신청과 본인 수정이 공유)
+function validateBookFields(data) {
   var title = str(data.title);
   var publisher = str(data.publisher);
   var link = str(data.link);
   var priceRaw = str(data.price);
 
-  if (!dept) throw new Error("소속을 선택해 주세요.");
-  if (!name) throw new Error("이름을 선택해 주세요.");
   if (!title) throw new Error("도서명을 입력해 주세요.");
   if (!publisher) throw new Error("출판사를 입력해 주세요.");
   if (!priceRaw) throw new Error("가격을 입력해 주세요.");
 
-  [name, dept, title, publisher].forEach(function (v) {
+  [title, publisher].forEach(function (v) {
     if (v.length > MAX_LEN) throw new Error("입력값이 너무 깁니다. (최대 " + MAX_LEN + "자)");
   });
   if (link.length > 1000) throw new Error("링크가 너무 깁니다.");
@@ -366,11 +440,26 @@ function validate(data) {
     throw new Error("링크는 http:// 또는 https:// 로 시작해야 합니다.");
   }
 
+  return { title: title, publisher: publisher, price: Number(priceRaw), link: link };
+}
+
+function validate(data) {
+  var name = str(data.name);
+  var dept = str(data.dept);
+
+  if (!dept) throw new Error("소속을 선택해 주세요.");
+  if (!name) throw new Error("이름을 선택해 주세요.");
+  [name, dept].forEach(function (v) {
+    if (v.length > MAX_LEN) throw new Error("입력값이 너무 깁니다. (최대 " + MAX_LEN + "자)");
+  });
+
+  var book = validateBookFields(data);
+
   var member = findMember(name, dept);
   if (!member) throw new Error("소속과 이름을 확인하세요.");
 
   return {
-    name: name, dept: dept, title: title, publisher: publisher,
-    price: Number(priceRaw), link: link, member: member,
+    name: name, dept: dept, title: book.title, publisher: book.publisher,
+    price: book.price, link: book.link, member: member,
   };
 }

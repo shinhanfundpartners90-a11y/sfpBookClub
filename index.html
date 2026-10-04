@@ -186,6 +186,8 @@
                   <th class="num">가격</th>
                   <th class="num">회차</th>
                   <th>링크</th>
+                  <th>단계</th>
+                  <th class="actions">작업</th>
                 </tr>
               </thead>
               <tbody id="list-body"></tbody>
@@ -193,16 +195,17 @@
                 <tr class="row-total">
                   <th colspan="2">사용 합계</th>
                   <td class="num" id="list-used"></td>
-                  <td colspan="2"></td>
+                  <td colspan="4"></td>
                 </tr>
                 <tr class="row-balance">
                   <th colspan="2">잔액</th>
                   <td class="num" id="list-remaining"></td>
-                  <td colspan="2" class="muted" id="list-budget"></td>
+                  <td colspan="4" class="muted" id="list-budget"></td>
                 </tr>
               </tfoot>
             </table>
           </div>
+          <p class="result-note">현재 회차의 '신청완료' 상태인 신청만 수정·삭제할 수 있습니다.</p>
         </div>
       </section>
 
@@ -410,7 +413,43 @@
     </div>
   </div>
 
-  <!-- 삭제 확인 모달 -->
+  <!-- 본인 신청 수정 모달 -->
+  <div class="modal-backdrop" id="request-modal" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="request-modal-title">
+      <h2 class="modal-title" id="request-modal-title">신청 수정</h2>
+      <p class="modal-desc" id="request-modal-desc"></p>
+      <form id="request-edit-form" novalidate>
+        <div class="field">
+          <label for="rq-title">도서명</label>
+          <input id="rq-title" type="text" required maxlength="200" autocomplete="off" />
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="rq-publisher">출판사</label>
+            <input id="rq-publisher" type="text" required maxlength="200" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="rq-price">가격</label>
+            <div class="input-suffix">
+              <input id="rq-price" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" />
+              <span class="suffix">원</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="rq-link">링크 <span class="optional">선택</span></label>
+          <input id="rq-link" type="url" maxlength="1000" placeholder="https://www.yes24.com/Product/Goods/145242086" autocomplete="off" />
+        </div>
+        <p class="modal-error" id="request-error" hidden></p>
+        <div class="modal-actions">
+          <button class="btn-text" id="request-cancel" type="button">취소</button>
+          <button class="btn-primary btn-compact" id="request-save" type="submit"><span>저장</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 삭제 확인 모달 (회원 삭제 · 본인 신청 삭제 공용) -->
   <div class="modal-backdrop" id="confirm-modal" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="modal-icon modal-icon-danger">

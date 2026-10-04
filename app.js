@@ -284,6 +284,8 @@
     return td;
   }
 
+  var lastListQuery = null; // {dept, name} — 수정·삭제 후 다시 조회할 때 쓴다
+
   function renderList(data, dept, name) {
     var body = $("#list-body");
     body.innerHTML = "";
@@ -291,7 +293,7 @@
     if (data.items.length === 0) {
       var tr = document.createElement("tr");
       var td = cell("신청한 도서가 없습니다.", "empty-row");
-      td.colSpan = 5;
+      td.colSpan = 7;
       tr.appendChild(td);
       body.appendChild(tr);
     }
@@ -316,6 +318,36 @@
         linkTd.className = "muted";
       }
       tr.appendChild(linkTd);
+      tr.appendChild(cell(it.status || "–", it.status ? "" : "muted"));
+
+      var actTd = document.createElement("td");
+      actTd.className = "actions";
+      if (it.editable) {
+        var edit = iconButton("", "수정", ICON_EDIT);
+        edit.addEventListener("click", function () { openRequestModal(it, dept, name); });
+        var del = iconButton("is-danger", "삭제", ICON_DELETE);
+        del.addEventListener("click", function () {
+          openConfirm({
+            title: "신청 삭제",
+            desc: "'" + it.title + "' 신청을 삭제합니다. 삭제 후에는 되돌릴 수 없습니다.",
+            okLabel: "삭제",
+            run: function () {
+              return postJson({ action: "request.delete", row: it.row, orig: { name: name, dept: dept, title: it.title, price: it.price } });
+            },
+            done: function () {
+              showBanner("success", "신청을 삭제했습니다. — " + it.title, listBanner);
+              refetchList();
+            },
+          });
+        });
+        actTd.appendChild(edit);
+        actTd.appendChild(del);
+      } else {
+        actTd.textContent = "–";
+        actTd.classList.add("muted");
+        actTd.title = "현재 회차의 '신청완료' 상태인 신청만 수정·삭제할 수 있습니다.";
+      }
+      tr.appendChild(actTd);
       body.appendChild(tr);
     });
 
@@ -326,6 +358,46 @@
     $("#list-budget").textContent = "지원금 " + won(data.budget);
     listResult.classList.toggle("is-over", data.remaining < 0);
     listResult.hidden = false;
+  }
+
+  function fetchList(dept, name) {
+    setListLoading(true);
+    var url = APPS_SCRIPT_URL + "?action=list&dept=" + encodeURIComponent(dept) + "&name=" + encodeURIComponent(name);
+    return fetch(url, { method: "GET" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "조회에 실패했습니다.");
+        // 서버가 재배포되지 않아 구버전 Code.gs가 응답하면 items가 없다.
+        if (!Array.isArray(data.items)) {
+          throw new Error("서버가 조회 기능을 지원하지 않습니다. Apps Script를 최신 Code.gs로 재배포해 주세요.");
+        }
+        lastListQuery = { dept: dept, name: name };
+        renderList(data, dept, name);
+      })
+      .catch(function (err) {
+        showBanner("error", err.message || "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", listBanner);
+      })
+      .finally(function () {
+        setListLoading(false);
+      });
+  }
+
+  function refetchList() {
+    if (lastListQuery) fetchList(lastListQuery.dept, lastListQuery.name);
+  }
+
+  // Apps Script는 text/plain으로 보내야 CORS preflight 없이 응답한다.
+  function postJson(body) {
+    return fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || "요청에 실패했습니다.");
+        return data;
+      });
   }
 
   listForm.addEventListener("submit", function (ev) {
@@ -345,26 +417,85 @@
       return;
     }
 
-    setListLoading(true);
     listResult.hidden = true;
+    fetchList(dept, name);
+  });
 
-    var url = APPS_SCRIPT_URL + "?action=list&dept=" + encodeURIComponent(dept) + "&name=" + encodeURIComponent(name);
-    fetch(url, { method: "GET" })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data.ok) throw new Error(data.error || "조회에 실패했습니다.");
-        // 서버가 재배포되지 않아 구버전 Code.gs가 응답하면 items가 없다.
-        if (!Array.isArray(data.items)) {
-          throw new Error("서버가 조회 기능을 지원하지 않습니다. Apps Script를 최신 Code.gs로 재배포해 주세요.");
-        }
-        renderList(data, dept, name);
+  // --- 본인 신청 수정 모달 ---
+
+  var requestModal = $("#request-modal");
+  var requestForm = $("#request-edit-form");
+  var requestError = $("#request-error");
+  var requestSave = $("#request-save");
+  var editingRequest = null; // {item, dept, name}
+
+  function openRequestModal(it, dept, name) {
+    editingRequest = { item: it, dept: dept, name: name };
+    $("#request-modal-desc").textContent = dept + " " + name + " · " + it.round + "회차";
+    $("#rq-title").value = it.title;
+    $("#rq-publisher").value = it.publisher;
+    $("#rq-price").value = String(it.price);
+    $("#rq-link").value = it.link || "";
+    requestError.hidden = true;
+    requestForm.querySelectorAll("input").forEach(function (el) { setInvalid(el, false); });
+    requestModal.hidden = false;
+    setTimeout(function () { $("#rq-title").focus(); }, 0);
+  }
+
+  function closeRequestModal() {
+    requestModal.hidden = true;
+    editingRequest = null;
+  }
+
+  function showRequestError(msg, el) {
+    requestError.textContent = msg;
+    requestError.hidden = false;
+    if (el) { setInvalid(el, true); el.focus(); }
+  }
+
+  function setRequestSaving(on) {
+    requestSave.disabled = on;
+    requestSave.querySelector("span").textContent = on ? "저장 중…" : "저장";
+    requestForm.querySelectorAll("input").forEach(function (el) { el.disabled = on; });
+  }
+
+  $("#request-cancel").addEventListener("click", closeRequestModal);
+  requestModal.addEventListener("click", function (ev) { if (ev.target === requestModal) closeRequestModal(); });
+  requestForm.addEventListener("input", function (ev) {
+    requestError.hidden = true;
+    if (ev.target.classList) setInvalid(ev.target, false);
+  });
+
+  requestForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!editingRequest) return;
+    var title = $("#rq-title").value.trim();
+    var publisher = $("#rq-publisher").value.trim();
+    var price = $("#rq-price").value.trim();
+    var link = $("#rq-link").value.trim();
+
+    if (!title) return showRequestError("도서명을 입력해 주세요.", $("#rq-title"));
+    if (!publisher) return showRequestError("출판사를 입력해 주세요.", $("#rq-publisher"));
+    if (!/^\d+$/.test(price) || Number(price) <= 0) return showRequestError("가격은 0보다 큰 정수로 입력해 주세요.", $("#rq-price"));
+    if (link && !/^https?:\/\//i.test(link)) return showRequestError("링크는 http:// 또는 https:// 로 시작해야 합니다.", $("#rq-link"));
+
+    var r = editingRequest;
+    setRequestSaving(true);
+    postJson({
+      action: "request.update",
+      row: r.item.row,
+      orig: { name: r.name, dept: r.dept, title: r.item.title, price: r.item.price },
+      title: title, publisher: publisher, price: price, link: link,
+    })
+      .then(function () {
+        closeRequestModal();
+        showBanner("success", "신청을 수정했습니다. — " + title, listBanner);
+        refetchList();
       })
       .catch(function (err) {
-        showBanner("error", err.message || "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", listBanner);
+        showRequestError(err.message);
       })
-      .finally(function () {
-        setListLoading(false);
-      });
+      .finally(function () { setRequestSaving(false); });
   });
 
   // ---------- 관리자 인증 모달 ----------
@@ -580,7 +711,18 @@
       var edit = iconButton("", "수정", ICON_EDIT);
       edit.addEventListener("click", function () { openMemberModal(m); });
       var del = iconButton("is-danger", "삭제", ICON_DELETE);
-      del.addEventListener("click", function () { openConfirmModal(m); });
+      del.addEventListener("click", function () {
+        openConfirm({
+          title: "회원 삭제",
+          desc: m.dept + " " + m.name + " 회원을 명부에서 삭제합니다. 이 회원의 신청 내역은 남습니다.",
+          okLabel: "삭제",
+          run: function () { return adminFetch("members.delete", { row: m.row, orig: { name: m.name, dept: m.dept } }); },
+          done: function () {
+            showBanner("success", "회원을 삭제했습니다. — " + m.dept + " " + m.name, adminBanner);
+            loadAdminMembers();
+          },
+        });
+      });
       td.appendChild(edit);
       td.appendChild(del);
       tr.appendChild(td);
@@ -685,16 +827,18 @@
       .finally(function () { setMemberSaving(false); });
   });
 
-  // --- 삭제 확인 모달 ---
+  // --- 삭제 확인 모달 (회원 삭제 · 본인 신청 삭제 공용) ---
 
   var confirmModal = $("#confirm-modal");
   var confirmError = $("#confirm-error");
   var confirmOk = $("#confirm-ok");
-  var deletingMember = null;
+  var confirmPending = null; // {title, desc, okLabel, run(): Promise, done(data)}
 
-  function openConfirmModal(member) {
-    deletingMember = member;
-    $("#confirm-desc").textContent = member.dept + " " + member.name + " 회원을 명부에서 삭제합니다. 이 회원의 신청 내역은 남습니다.";
+  function openConfirm(opts) {
+    confirmPending = opts;
+    $("#confirm-title").textContent = opts.title;
+    $("#confirm-desc").textContent = opts.desc;
+    confirmOk.querySelector("span").textContent = opts.okLabel || "삭제";
     confirmError.hidden = true;
     confirmModal.hidden = false;
     setTimeout(function () { confirmOk.focus(); }, 0);
@@ -702,22 +846,22 @@
 
   function closeConfirmModal() {
     confirmModal.hidden = true;
-    deletingMember = null;
+    confirmPending = null;
   }
 
   $("#confirm-cancel").addEventListener("click", closeConfirmModal);
   confirmModal.addEventListener("click", function (ev) { if (ev.target === confirmModal) closeConfirmModal(); });
 
   confirmOk.addEventListener("click", function () {
-    if (!deletingMember) return;
-    var m = deletingMember;
+    if (!confirmPending) return;
+    var p = confirmPending;
+    var label = p.okLabel || "삭제";
     confirmOk.disabled = true;
-    confirmOk.querySelector("span").textContent = "삭제 중…";
-    adminFetch("members.delete", { row: m.row, orig: { name: m.name, dept: m.dept } })
-      .then(function () {
+    confirmOk.querySelector("span").textContent = label + " 중…";
+    p.run()
+      .then(function (data) {
         closeConfirmModal();
-        showBanner("success", "회원을 삭제했습니다. — " + m.dept + " " + m.name, adminBanner);
-        return loadAdminMembers();
+        if (p.done) p.done(data);
       })
       .catch(function (err) {
         confirmError.textContent = err.message;
@@ -725,13 +869,14 @@
       })
       .finally(function () {
         confirmOk.disabled = false;
-        confirmOk.querySelector("span").textContent = "삭제";
+        confirmOk.querySelector("span").textContent = label;
       });
   });
 
   document.addEventListener("keydown", function (ev) {
     if (ev.key !== "Escape") return;
     if (!memberModal.hidden) closeMemberModal();
+    if (!requestModal.hidden) closeRequestModal();
     if (!confirmModal.hidden) closeConfirmModal();
   });
 
