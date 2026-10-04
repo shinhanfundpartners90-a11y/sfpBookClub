@@ -274,6 +274,33 @@ a {
   line-height: 1.5;
 }
 
+/* 외부 링크용 작은 외곽선 버튼 (예: YES24 바로가기) */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin-top: 12px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--google-blue);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-outline:hover {
+  background-color: var(--google-blue-light);
+  border-color: var(--google-blue);
+}
+
+.btn-outline .btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
 /* ---------- Card Container ---------- */
 
 .card {
