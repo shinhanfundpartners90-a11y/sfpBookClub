@@ -355,6 +355,7 @@ a {
 
 .field {
   margin-bottom: 24px;
+  min-width: 0; /* 그리드 칸이 날짜 입력 등의 고유 폭보다 작게 줄어들 수 있게 */
 }
 
 .field label {
@@ -747,6 +748,18 @@ input[type="number"] {
 
 input[type="date"] {
   font-family: var(--font-sans);
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* iOS Safari: 날짜 값을 왼쪽 정렬하고 입력란 높이를 다른 입력과 맞춘다 */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.4em;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
@@ -870,6 +883,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @media (max-width: 840px) {
   .filter-bar { grid-template-columns: 1fr 1fr; }
   .filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
+
+  /* 기간 조회: 시작일·종료일을 세로로, 조회 버튼은 전체 폭 */
+  .filter-bar-range { grid-template-columns: 1fr; }
+  .filter-bar-range .filter-actions { justify-content: stretch; }
+  .filter-bar-range .filter-actions .btn-primary { flex: 1; }
 }
 
 /* ---------- 관리자 인증 모달 ---------- */
