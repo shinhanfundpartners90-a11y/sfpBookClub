@@ -138,7 +138,11 @@
 
   function setSubmitting(on) {
     submitBtn.disabled = on;
-    submitBtn.textContent = on ? "신청 중…" : "신청하기";
+    if (on) {
+      submitBtn.innerHTML = '<span>신청 중…</span>';
+    } else {
+      submitBtn.innerHTML = '<span>신청하기</span><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>';
+    }
     form.querySelectorAll("input, select").forEach(function (el) {
       if (el === nameSel && !deptSel.value) return; // 이름은 소속 미선택 시 원래 비활성
       el.disabled = on;
