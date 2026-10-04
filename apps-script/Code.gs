@@ -28,15 +28,71 @@ function getSheet(name) {
   return sheet;
 }
 
-// 명부 탭 → [{name, dept}]
+// "19,800" / 19800 / "" → 숫자
+function toAmount(v) {
+  var n = Number(String(v).replace(/[^\d.-]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+// 명부 탭 → [{name, dept, budget}]  (budget = D열 지원금)
 function readMembers() {
   var sheet = getSheet(SHEET_MEMBERS);
   var last = sheet.getLastRow();
   if (last < 2) return [];
-  var rows = sheet.getRange(2, 1, last - 1, 2).getValues();
+  var rows = sheet.getRange(2, 1, last - 1, 4).getValues();
   return rows
-    .map(function (r) { return { name: String(r[0]).trim(), dept: String(r[1]).trim() }; })
+    .map(function (r) {
+      return { name: String(r[0]).trim(), dept: String(r[1]).trim(), budget: toAmount(r[3]) };
+    })
     .filter(function (m) { return m.name && m.dept; });
+}
+
+function findMember(name, dept) {
+  var found = null;
+  readMembers().some(function (m) {
+    if (m.name === name && m.dept === dept) { found = m; return true; }
+    return false;
+  });
+  return found;
+}
+
+// 도서신청내역에서 해당 회원의 신청 행 전체 (전 회차)
+// A=이름 B=소속 C=도서 D=출판사 E=가격 F=회차 G=단계 H=신청일자 I=링크
+function rowToRequest(r) {
+  return {
+    name: String(r[0]).trim(),
+    dept: String(r[1]).trim(),
+    title: String(r[2]).trim(),
+    publisher: String(r[3]).trim(),
+    price: toAmount(r[4]),
+    round: toAmount(r[5]),
+    status: String(r[6]).trim(),
+    date: r[7] instanceof Date ? formatDate(r[7]) : String(r[7]).trim(),
+    link: String(r[8]).trim(),
+  };
+}
+
+// 도서신청내역 전체 (빈 행 제외)
+function readAllRequests() {
+  var sheet = getSheet(SHEET_REQUESTS);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  return sheet.getRange(2, 1, last - 1, 9).getValues()
+    .map(rowToRequest)
+    .filter(function (it) { return it.name || it.dept || it.title; });
+}
+
+function readRequests(name, dept) {
+  return readAllRequests().filter(function (it) { return it.name === name && it.dept === dept; });
+}
+
+// 전 회차 신청 가격 합계
+function readUsedAmount(name, dept) {
+  return readRequests(name, dept).reduce(function (sum, it) { return sum + it.price; }, 0);
+}
+
+function won(n) {
+  return n.toLocaleString("ko-KR") + "원";
 }
 
 // 설정!B1 → 현재 회차
@@ -57,7 +113,9 @@ function doGet(e) {
   try {
     var action = e && e.parameter && e.parameter.action;
     if (action === "members") {
-      return json({ ok: true, members: readMembers() });
+      // 지원금은 외부에 노출하지 않고 이름·소속만 내려준다.
+      var members = readMembers().map(function (m) { return { name: m.name, dept: m.dept }; });
+      return json({ ok: true, members: members });
     }
     return json({ ok: true });
   } catch (err) {
@@ -74,7 +132,18 @@ function doPost(e) {
     var payload = validate(data);
     var round = readCurrentRound();
 
+    // 잔액 검사는 동시 신청으로 한도를 넘지 않도록 락 안에서 수행한다.
     lock.waitLock(10000);
+    var used = readUsedAmount(payload.name, payload.dept);
+    var budget = payload.member.budget;
+    var remaining = budget - used;
+    if (used + payload.price > budget) {
+      throw new Error(
+        "잔액이 부족합니다. 지원금 " + won(budget) + " 중 " + won(used) + " 사용, 잔액 " +
+        won(remaining) + " (신청 가격 " + won(payload.price) + ")"
+      );
+    }
+
     getSheet(SHEET_REQUESTS).appendRow([
       payload.name,
       payload.dept,
@@ -87,7 +156,7 @@ function doPost(e) {
       payload.link,
     ]);
 
-    return json({ ok: true, round: round });
+    return json({ ok: true, round: round, remaining: remaining - payload.price });
   } catch (err) {
     return json({ ok: false, error: err.message });
   } finally {
@@ -123,8 +192,11 @@ function validate(data) {
     throw new Error("링크는 http:// 또는 https:// 로 시작해야 합니다.");
   }
 
-  var exists = readMembers().some(function (m) { return m.name === name && m.dept === dept; });
-  if (!exists) throw new Error("명부에 없는 소속/이름입니다.");
+  var member = findMember(name, dept);
+  if (!member) throw new Error("소속과 이름을 확인하세요.");
 
-  return { name: name, dept: dept, title: title, publisher: publisher, price: Number(priceRaw), link: link };
+  return {
+    name: name, dept: dept, title: title, publisher: publisher,
+    price: Number(priceRaw), link: link, member: member,
+  };
 }

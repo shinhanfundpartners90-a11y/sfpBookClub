@@ -78,6 +78,10 @@
     nameSel.disabled = false;
   }
 
+  function isMember(dept, name) {
+    return members.some(function (m) { return m.dept === dept && m.name === name; });
+  }
+
   function loadMembers() {
     return fetch(APPS_SCRIPT_URL + "?action=members", { method: "GET" })
       .then(function (res) { return res.json(); })
@@ -113,6 +117,14 @@
     if (firstError) {
       firstError.el.focus();
       return firstError.msg;
+    }
+
+    // 소속·이름 조합이 명부에 있는지 확인 (서버에서도 다시 검사한다)
+    if (!isMember(deptSel.value, nameSel.value)) {
+      setInvalid(deptSel, true);
+      setInvalid(nameSel, true);
+      deptSel.focus();
+      return "소속과 이름을 확인하세요.";
     }
 
     var price = $("#price");
@@ -179,7 +191,11 @@
       .then(function (res) { return res.json(); })
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || "신청에 실패했습니다.");
-        showBanner("success", data.round + "회차 신청이 완료되었습니다. — " + payload.title);
+        var msg = data.round + "회차 신청이 완료되었습니다. — " + payload.title;
+        if (typeof data.remaining === "number") {
+          msg += " (남은 지원금 " + data.remaining.toLocaleString("ko-KR") + "원)";
+        }
+        showBanner("success", msg);
         // 소속·이름은 유지, 나머지만 초기화
         ["#title", "#publisher", "#price", "#link"].forEach(function (sel) { $(sel).value = ""; });
         $("#title").focus();
