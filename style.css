@@ -670,6 +670,11 @@ input[type="number"] {
   animation: slideUp 0.2s ease-out;
 }
 
+/* display:flex가 hidden 속성의 display:none을 덮어쓰지 않도록 */
+.banner[hidden] {
+  display: none;
+}
+
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
