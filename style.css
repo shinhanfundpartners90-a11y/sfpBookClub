@@ -750,21 +750,28 @@ input[type="date"] {
   font-family: var(--font-sans);
   -webkit-appearance: none;
   appearance: none;
-  display: block;
+  display: flex;            /* iOS Safari: 안쪽 값을 세로 가운데에 놓기 위해 */
+  align-items: center;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+  line-height: 1.2;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
-/* iOS Safari: 날짜 값을 왼쪽 정렬하고 입력란 높이를 다른 입력과 맞춘다 */
+/* iOS Safari: 날짜 값을 왼쪽 정렬하고 위로 치우치지 않게 */
 input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
-  min-height: 1.4em;
+  margin: 0;
+  min-height: 0;
+  line-height: 1.2;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
+  margin-left: auto; /* 값은 왼쪽, 달력 아이콘은 오른쪽 끝 */
 }
 
 .result-note {
