@@ -67,6 +67,7 @@
       return;
     }
     showSection(key);
+    if (key === "admin" && !adminMembersLoaded) loadAdminMembers();
   }
 
   window.addEventListener("hashchange", route);
@@ -430,6 +431,7 @@
         setAdminAuthed(password);
         adminModal.hidden = true;
         showSection("admin");
+        loadAdminMembers();
       })
       .catch(function (err) {
         showAdminError(err.message || "네트워크 오류가 발생했습니다.");
@@ -440,9 +442,298 @@
       });
   });
 
+  // ---------- 관리자: 탭 ----------
+
+  document.querySelectorAll(".admin-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      var key = tab.dataset.tab;
+      document.querySelectorAll(".admin-tab").forEach(function (t) { t.classList.toggle("is-active", t === tab); });
+      document.querySelectorAll(".admin-panel").forEach(function (p) { p.hidden = p.dataset.panel !== key; });
+    });
+  });
+
+  // ---------- 관리자: 회원 관리 ----------
+
+  var adminBanner = $("#admin-banner");
+  var memberBody = $("#member-body");
+  var mfDept = $("#mf-dept");
+  var mfName = $("#mf-name");
+  var mfLocation = $("#mf-location");
+
+  var adminMembers = [];      // [{row, name, dept, location, budget}]
+  var adminMembersLoaded = false;
+
+  // 관리자 API 호출. 비밀번호가 틀리면(바뀌었으면) 인증을 지우고 다시 묻는다.
+  function adminFetch(op, payload) {
+    var body = Object.assign({ action: "admin", op: op, password: getAdminPassword() }, payload || {});
+    return fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.ok) {
+          if (data.error === "비밀번호가 올바르지 않습니다.") {
+            clearAdminAuthed();
+            openAdminModal();
+          }
+          throw new Error(data.error || "요청에 실패했습니다.");
+        }
+        return data;
+      });
+  }
+
+  function fillOptions(select, values, keepValue) {
+    var prev = keepValue ? select.value : "";
+    select.innerHTML = "";
+    var all = document.createElement("option");
+    all.value = "";
+    all.textContent = "전체";
+    select.appendChild(all);
+    values.forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+    if (prev && values.indexOf(prev) !== -1) select.value = prev;
+  }
+
+  function fillDatalist(id, values) {
+    var dl = $("#" + id);
+    dl.innerHTML = "";
+    values.forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v;
+      dl.appendChild(opt);
+    });
+  }
+
+  function loadAdminMembers() {
+    if (!isAdminAuthed()) return;
+    hideBanner(adminBanner);
+    memberBody.innerHTML = '<tr><td class="empty-row" colspan="5">불러오는 중…</td></tr>';
+    return adminFetch("members.list")
+      .then(function (data) {
+        adminMembers = data.members || [];
+        adminMembersLoaded = true;
+        var depts = uniqueSorted(adminMembers.map(function (m) { return m.dept; }).filter(Boolean));
+        var locs = uniqueSorted(adminMembers.map(function (m) { return m.location; }).filter(Boolean));
+        fillOptions(mfDept, depts, true);
+        fillOptions(mfLocation, locs, true);
+        fillDatalist("dept-options", depts);
+        fillDatalist("location-options", locs);
+        renderMembers();
+      })
+      .catch(function (err) {
+        memberBody.innerHTML = '<tr><td class="empty-row" colspan="5">불러오지 못했습니다.</td></tr>';
+        showBanner("error", err.message, adminBanner);
+      });
+  }
+
+  function filteredMembers() {
+    var dept = mfDept.value;
+    var name = mfName.value.trim();
+    var loc = mfLocation.value;
+    return adminMembers.filter(function (m) {
+      if (dept && m.dept !== dept) return false;
+      if (loc && m.location !== loc) return false;
+      if (name && m.name.indexOf(name) === -1) return false;
+      return true;
+    });
+  }
+
+  function iconButton(cls, title, svg) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn-icon-only " + cls;
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.innerHTML = svg;
+    return b;
+  }
+
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  var ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+  function renderMembers() {
+    var list = filteredMembers();
+    memberBody.innerHTML = "";
+    $("#member-count").textContent = list.length + "명" + (list.length !== adminMembers.length ? " / 전체 " + adminMembers.length + "명" : "");
+
+    if (list.length === 0) {
+      memberBody.innerHTML = '<tr><td class="empty-row" colspan="5">' +
+        (adminMembers.length ? "조건에 맞는 회원이 없습니다." : "등록된 회원이 없습니다.") + "</td></tr>";
+      return;
+    }
+
+    list.forEach(function (m) {
+      var tr = document.createElement("tr");
+      tr.appendChild(cell(m.name));
+      tr.appendChild(cell(m.dept));
+      tr.appendChild(cell(m.location || "–", m.location ? "" : "muted"));
+      tr.appendChild(cell(won(m.budget), "num"));
+      var td = document.createElement("td");
+      td.className = "actions";
+      var edit = iconButton("", "수정", ICON_EDIT);
+      edit.addEventListener("click", function () { openMemberModal(m); });
+      var del = iconButton("is-danger", "삭제", ICON_DELETE);
+      del.addEventListener("click", function () { openConfirmModal(m); });
+      td.appendChild(edit);
+      td.appendChild(del);
+      tr.appendChild(td);
+      memberBody.appendChild(tr);
+    });
+  }
+
+  mfDept.addEventListener("change", renderMembers);
+  mfLocation.addEventListener("change", renderMembers);
+  mfName.addEventListener("input", renderMembers);
+  $("#member-filter").addEventListener("submit", function (ev) { ev.preventDefault(); });
+  $("#mf-reset").addEventListener("click", function () {
+    mfDept.value = "";
+    mfName.value = "";
+    mfLocation.value = "";
+    renderMembers();
+  });
+  $("#member-reload").addEventListener("click", loadAdminMembers);
+
+  // --- 회원 추가/수정 모달 ---
+
+  var memberModal = $("#member-modal");
+  var memberForm = $("#member-form");
+  var memberError = $("#member-error");
+  var memberSave = $("#member-save");
+  var editingMember = null; // null이면 추가, 아니면 수정 대상
+
+  function openMemberModal(member) {
+    editingMember = member || null;
+    $("#member-modal-title").textContent = member ? "회원 수정" : "회원 추가";
+    $("#mm-name").value = member ? member.name : "";
+    $("#mm-dept").value = member ? member.dept : "";
+    $("#mm-location").value = member ? member.location : "";
+    $("#mm-budget").value = member ? String(member.budget) : "";
+    memberError.hidden = true;
+    memberForm.querySelectorAll("input").forEach(function (el) { setInvalid(el, false); });
+    memberModal.hidden = false;
+    setTimeout(function () { $("#mm-name").focus(); }, 0);
+  }
+
+  function closeMemberModal() {
+    memberModal.hidden = true;
+    editingMember = null;
+  }
+
+  function showMemberError(msg, el) {
+    memberError.textContent = msg;
+    memberError.hidden = false;
+    if (el) { setInvalid(el, true); el.focus(); }
+  }
+
+  function setMemberSaving(on) {
+    memberSave.disabled = on;
+    memberSave.querySelector("span").textContent = on ? "저장 중…" : "저장";
+    memberForm.querySelectorAll("input").forEach(function (el) { el.disabled = on; });
+  }
+
+  $("#member-add").addEventListener("click", function () { openMemberModal(null); });
+  $("#member-cancel").addEventListener("click", closeMemberModal);
+  memberModal.addEventListener("click", function (ev) { if (ev.target === memberModal) closeMemberModal(); });
+  memberForm.addEventListener("input", function (ev) {
+    memberError.hidden = true;
     if (ev.target.classList) setInvalid(ev.target, false);
   });
-  deptSel.addEventListener("change", onDeptChange);
+
+  memberForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = $("#mm-name").value.trim();
+    var dept = $("#mm-dept").value.trim();
+    var location = $("#mm-location").value.trim();
+    var budget = $("#mm-budget").value.trim();
+
+    if (!name) return showMemberError("이름을 입력해 주세요.", $("#mm-name"));
+    if (!dept) return showMemberError("소속을 입력해 주세요.", $("#mm-dept"));
+    if (!/^\d+$/.test(budget)) return showMemberError("지원금은 0 이상의 정수로 입력해 주세요.", $("#mm-budget"));
+
+    var dup = adminMembers.some(function (m) {
+      return m.name === name && m.dept === dept && (!editingMember || m.row !== editingMember.row);
+    });
+    if (dup) return showMemberError("이미 같은 소속에 같은 이름의 회원이 있습니다.", $("#mm-name"));
+
+    var payload = { name: name, dept: dept, location: location, budget: budget };
+    var op = "members.create";
+    if (editingMember) {
+      op = "members.update";
+      payload.row = editingMember.row;
+      payload.orig = { name: editingMember.name, dept: editingMember.dept };
+    }
+
+    setMemberSaving(true);
+    adminFetch(op, payload)
+      .then(function (data) {
+        var msg = editingMember ? "회원 정보를 수정했습니다." : "회원을 추가했습니다.";
+        if (data.renamedRequests) msg += " (신청 내역 " + data.renamedRequests + "건의 이름·소속도 함께 변경)";
+        closeMemberModal();
+        showBanner("success", msg + " — " + dept + " " + name, adminBanner);
+        return loadAdminMembers();
+      })
+      .catch(function (err) {
+        if (!memberModal.hidden) showMemberError(err.message);
+      })
+      .finally(function () { setMemberSaving(false); });
+  });
+
+  // --- 삭제 확인 모달 ---
+
+  var confirmModal = $("#confirm-modal");
+  var confirmError = $("#confirm-error");
+  var confirmOk = $("#confirm-ok");
+  var deletingMember = null;
+
+  function openConfirmModal(member) {
+    deletingMember = member;
+    $("#confirm-desc").textContent = member.dept + " " + member.name + " 회원을 명부에서 삭제합니다. 이 회원의 신청 내역은 남습니다.";
+    confirmError.hidden = true;
+    confirmModal.hidden = false;
+    setTimeout(function () { confirmOk.focus(); }, 0);
+  }
+
+  function closeConfirmModal() {
+    confirmModal.hidden = true;
+    deletingMember = null;
+  }
+
+  $("#confirm-cancel").addEventListener("click", closeConfirmModal);
+  confirmModal.addEventListener("click", function (ev) { if (ev.target === confirmModal) closeConfirmModal(); });
+
+  confirmOk.addEventListener("click", function () {
+    if (!deletingMember) return;
+    var m = deletingMember;
+    confirmOk.disabled = true;
+    confirmOk.querySelector("span").textContent = "삭제 중…";
+    adminFetch("members.delete", { row: m.row, orig: { name: m.name, dept: m.dept } })
+      .then(function () {
+        closeConfirmModal();
+        showBanner("success", "회원을 삭제했습니다. — " + m.dept + " " + m.name, adminBanner);
+        return loadAdminMembers();
+      })
+      .catch(function (err) {
+        confirmError.textContent = err.message;
+        confirmError.hidden = false;
+      })
+      .finally(function () {
+        confirmOk.disabled = false;
+        confirmOk.querySelector("span").textContent = "삭제";
+      });
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    if (!memberModal.hidden) closeMemberModal();
+    if (!confirmModal.hidden) closeConfirmModal();
+  });
+
   route();
 
   // ---------- 초기화 ----------

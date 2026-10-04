@@ -635,6 +635,119 @@ input[type="number"] {
   color: var(--google-red);
 }
 
+/* ---------- 관리자: 탭 · 필터 · 목록 ---------- */
+
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  margin-bottom: -1px;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-tab:hover { color: var(--text-primary); }
+
+.admin-tab.is-active {
+  color: var(--google-blue);
+  font-weight: 600;
+  border-bottom-color: var(--google-blue);
+}
+
+.toolbar-card {
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.filter-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.filter-bar .field { margin-bottom: 0; }
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-bar input[type="text"],
+.filter-bar select {
+  height: 40px;
+}
+
+.result-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon-only {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-icon-only svg { width: 18px; height: 18px; }
+.btn-icon-only:hover { background-color: var(--surface-hover); color: var(--text-primary); }
+.btn-icon-only.is-danger:hover { background-color: var(--google-red-light); color: var(--google-red); }
+.btn-icon-only:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.result-table th.actions,
+.result-table td.actions {
+  text-align: right;
+}
+
+.result-table td.actions {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.member-table tbody td:first-child { min-width: 100px; }
+
+.btn-primary.btn-danger { background-color: var(--google-red); }
+.btn-primary.btn-danger:hover:not(:disabled) { background-color: #b3261e; }
+
+.modal-wide { max-width: 520px; }
+.modal-wide .field { margin-bottom: 16px; }
+
+.modal-icon-danger {
+  background: var(--google-red-light);
+  color: var(--google-red);
+}
+
+@media (max-width: 840px) {
+  .filter-bar { grid-template-columns: 1fr 1fr; }
+  .filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+
 /* ---------- 관리자 인증 모달 ---------- */
 
 .modal-backdrop {

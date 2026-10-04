@@ -206,16 +206,138 @@
           <h1 class="section-title">관리자 페이지</h1>
           <p class="section-desc">회원 명부와 신청 도서를 관리합니다.</p>
         </header>
-        <div class="card card-empty">
-          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
-          </svg>
-          <p class="empty-text">준비 중입니다.</p>
+
+        <div class="admin-tabs" role="tablist">
+          <button class="admin-tab is-active" type="button" role="tab" data-tab="members">회원 관리</button>
+          <button class="admin-tab" type="button" role="tab" data-tab="requests">신청도서 관리</button>
+        </div>
+
+        <!-- 회원 관리 -->
+        <div class="admin-panel" data-panel="members">
+          <div class="card toolbar-card">
+            <form id="member-filter" class="filter-bar" novalidate>
+              <div class="field">
+                <label for="mf-dept">소속</label>
+                <div class="select-wrapper">
+                  <select id="mf-dept"><option value="">전체</option></select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="mf-name">이름</label>
+                <input id="mf-name" type="text" placeholder="이름 검색" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="mf-location">위치</label>
+                <div class="select-wrapper">
+                  <select id="mf-location"><option value="">전체</option></select>
+                </div>
+              </div>
+              <div class="filter-actions">
+                <button class="btn-text" id="mf-reset" type="button">초기화</button>
+                <button class="btn-primary btn-compact" id="member-add" type="button">
+                  <span>회원 추가</span>
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="banner" id="admin-banner" role="status" hidden></div>
+
+          <div class="card result-card">
+            <div class="result-head">
+              <span class="result-title">회원 목록</span>
+              <span class="result-head-right">
+                <span class="result-count" id="member-count"></span>
+                <button class="btn-icon-only" id="member-reload" type="button" title="새로고침" aria-label="새로고침">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+            <div class="table-wrap">
+              <table class="result-table member-table">
+                <thead>
+                  <tr>
+                    <th>이름</th>
+                    <th>소속</th>
+                    <th>위치</th>
+                    <th class="num">지원금</th>
+                    <th class="actions">작업</th>
+                  </tr>
+                </thead>
+                <tbody id="member-body">
+                  <tr><td class="empty-row" colspan="5">불러오는 중…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
         </div>
       </section>
     </main>
   </div>
 
+  <!-- 회원 추가/수정 모달 -->
+  <div class="modal-backdrop" id="member-modal" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
+      <h2 class="modal-title" id="member-modal-title">회원 추가</h2>
+      <p class="modal-desc">이름과 소속은 필수입니다.</p>
+      <form id="member-form" novalidate>
+        <div class="row-2">
+          <div class="field">
+            <label for="mm-name">이름</label>
+            <input id="mm-name" type="text" required maxlength="200" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="mm-dept">소속</label>
+            <input id="mm-dept" type="text" required maxlength="200" autocomplete="off" list="dept-options" />
+            <datalist id="dept-options"></datalist>
+          </div>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="mm-location">위치</label>
+            <input id="mm-location" type="text" maxlength="200" autocomplete="off" list="location-options" />
+            <datalist id="location-options"></datalist>
+          </div>
+          <div class="field">
+            <label for="mm-budget">지원금</label>
+            <div class="input-suffix">
+              <input id="mm-budget" type="number" inputmode="numeric" min="0" step="1" required placeholder="0" />
+              <span class="suffix">원</span>
+            </div>
+          </div>
+        </div>
+        <p class="modal-error" id="member-error" hidden></p>
+        <div class="modal-actions">
+          <button class="btn-text" id="member-cancel" type="button">취소</button>
+          <button class="btn-primary btn-compact" id="member-save" type="submit"><span>저장</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 삭제 확인 모달 -->
+  <div class="modal-backdrop" id="confirm-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-icon modal-icon-danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+      </div>
+      <h2 class="modal-title" id="confirm-title">회원 삭제</h2>
+      <p class="modal-desc" id="confirm-desc"></p>
+      <p class="modal-error" id="confirm-error" hidden></p>
+      <div class="modal-actions">
+        <button class="btn-text" id="confirm-cancel" type="button">취소</button>
+        <button class="btn-primary btn-compact btn-danger" id="confirm-ok" type="button"><span>삭제</span></button>
+      </div>
+    </div>
+  </div>
 
   <!-- 관리자 비밀번호 모달 -->
   <div class="modal-backdrop" id="admin-modal" hidden>
