@@ -250,6 +250,11 @@ a {
   animation: fadeIn 0.25s ease-out;
 }
 
+/* 관리자 페이지(회원 관리·신청도서 관리)는 표가 넓어 본문 전체 폭을 쓴다 */
+#section-admin {
+  max-width: none;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
